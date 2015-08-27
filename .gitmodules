@@ -1,3 +1,6 @@
 [submodule "spt_dataset_manager"]
 	path = spt_dataset_manager
 	url = https://github.com/erdc-cm/spt_dataset_manager.git
+[submodule "RAPIDpy"]
+	path = RAPIDpy
+	url = https://github.com/erdc-cm/RAPIDpy.git
