@@ -1,10 +1,8 @@
 #!/usr/bin/env python
 import datetime
-import itertools
 import multiprocessing
 import os
 import re
-from shutil import rmtree
 
 #package imports
 from RAPIDpy.rapid import RAPID
@@ -155,8 +153,7 @@ def run_era_interim_rapid_process(rapid_executable_location,
                                                        in_weight_table=erai_weight_table_file,
                                                        size_time=len(era_interim_file_list)+1
                                                       )
-        os.chmod(master_rapid_runoff_file, 0777)
-        
+
         job_combinations = []
         for erai_file_index, erai_file in enumerate(era_interim_file_list):
             job_combinations.append((watershed.lower(), 
@@ -174,7 +171,7 @@ def run_era_interim_rapid_process(rapid_executable_location,
                   chunksize=1)
         pool.close()
         pool.join()
-        
+
         #run RAPID for the watershed
         era_rapid_output_file = os.path.join(master_watershed_output_directory,
                                                                'Qout_erai.nc')
@@ -185,13 +182,13 @@ def run_era_interim_rapid_process(rapid_executable_location,
                                                                                      r'riv_bas_id\.csv'),
                                         k_file=case_insensitive_file_search(master_watershed_input_directory,
                                                                             r'k\.csv'),
-                                        x_file=case_insensitive_file_search(master_watershed_output_directory,
+                                        x_file=case_insensitive_file_search(master_watershed_input_directory,
                                                                             r'x\.csv'),
                                         Qout_file=era_rapid_output_file
                                         )
     
-        comid_lat_lon_z_file = case_insensitive_file_search(rapid_input_directory,
-                                                            r'comid_lat_lon_z.csv')
+        comid_lat_lon_z_file = case_insensitive_file_search(master_watershed_input_directory,
+                                                            r'comid_lat_lon_z\.csv')
 
         rapid_manager.update_reach_number_data()
         rapid_manager.run()
