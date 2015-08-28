@@ -107,7 +107,7 @@ def run_era_interim_rapid_process(rapid_executable_location,
                 era_interim_file_list.append(os.path.join(subdir, erai_file))
 
     era_interim_file_list = sorted(era_interim_file_list)
-    print len(era_interim_file_list)
+
     rapid_manager = RAPID(rapid_executable_location=rapid_executable_location,
                           use_all_processors=True,                          
                           ZS_TauR = 24*3600, #duration of routing procedure (time step of runoff data)
