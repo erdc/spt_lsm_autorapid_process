@@ -33,7 +33,7 @@ $ pip install numpy netCDF4
 ##Step 4: Install Other Python Libraries
 ```
 $ sudo su
-$ pip install requests_toolbelt tethys_dataset_services
+$ pip install requests_toolbelt tethys_dataset_services RAPIDpy
 $ exit
 ```
 
