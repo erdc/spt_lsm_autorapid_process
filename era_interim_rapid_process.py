@@ -2,10 +2,8 @@
 import datetime
 import multiprocessing
 import os
-import re
-
-#package imports
 from RAPIDpy.rapid import RAPID
+import re
 
 #local imports
 from imports.CreateInflowFileFromERAInterimRunoff import CreateInflowFileFromERAInterimRunoff
