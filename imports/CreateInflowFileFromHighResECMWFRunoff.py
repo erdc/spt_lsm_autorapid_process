@@ -91,8 +91,7 @@ class CreateInflowFileFromHighResECMWFRunoff(object):
                     count += 1
 
         size_streamID = len(set(dict_list[self.header_wt[0]]))
-        size_time = len(in_sorted_nc_files) * 12 + 1
-        print size_time
+        size_time = len(in_sorted_nc_files) * 12
 
         # Create output inflow netcdf data
         # data_out_nc = NET.Dataset(out_nc, "w") # by default format = "NETCDF4"
@@ -169,15 +168,8 @@ class CreateInflowFileFromHighResECMWFRunoff(object):
                 # then from Hour 90 to 144 (19 time points) are of 3 hour time interval, and from Hour 144 to 240 (15 time points)
                 # are of 6 hour time interval
                     # get hourly incremental time series for first 12 hours
-                    ro_6hr_b = NUM.subtract(data_goal[1:13,], data_goal[:12,])
-                    if file_index == 0:
-                        # Hour = 0 is a single data point
-                        ro_6hr_a = data_goal[0:1,]
-                        # concatenate all time series
-                        ro_stream = NUM.concatenate([ro_6hr_a, ro_6hr_b]) * area_sqm_npoints
-                    else:
-                        #time zero from last file, so don't need it
-                        ro_stream = ro_6hr_b * area_sqm_npoints
+                    ro_stream = NUM.subtract(data_goal[1:13,], data_goal[:12,]) * area_sqm_npoints
+
 
                 num_data_points = len(ro_stream)
                 data_temp[index_pointer:index_pointer + num_data_points,s] = ro_stream.sum(axis = 1)

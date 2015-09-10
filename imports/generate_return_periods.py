@@ -2,10 +2,8 @@
 #generate_return_periods.py
 import netCDF4 as nc
 import numpy as np
-import os
-from json import dumps
 
-def generate_return_periods(era_interim_file, return_period_file):
+def generate_return_periods(era_interim_file, return_period_file, num_years, step=7):
     """
     Create warning points from era interim data and ECMWD prediction data
 
@@ -56,14 +54,12 @@ def generate_return_periods(era_interim_file, return_period_file):
     return_period_nc.variables['lon'][:] = era_interim_lon_data
 
     era_flow_data = era_data_nc.variables['Qout'][0,:]
-    num_years = int(len(era_flow_data)/365)
 
     print "Generating Return Periods ..."
 
     for comid_index, comid in enumerate(era_interim_comids):
 
         era_flow_data = era_data_nc.variables['Qout'][comid_index,:]
-        step = 7
         filtered_era_flow_data = []
         for step_index in range(0,len(era_flow_data),step):
             flows_slice = era_flow_data[step_index:step_index + step]
