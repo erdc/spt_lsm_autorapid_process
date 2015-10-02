@@ -88,6 +88,7 @@ def run_era_interim_rapid_process(rapid_executable_location,
                                   download_era_interim=False,
                                   ensemble_list=[None],
                                   generate_return_periods_file=False,
+                                  cygwin_bin_location=""
                                   ):
     """
     This it the main process
@@ -202,6 +203,7 @@ def run_era_interim_rapid_process(rapid_executable_location,
         out_file_ending = "{0}_{1}{2}".format(grid_type, time_step/3600, out_file_ending)
         #set up RAPID manager
         rapid_manager = RAPID(rapid_executable_location=rapid_executable_location,
+                              cygwin_bin_location=cygwin_bin_location,
                               use_all_processors=True,                          
                               ZS_TauR=time_step, #duration of routing procedure (time step of runoff data)
                               ZS_dtR=15*60, #internal routing time step
