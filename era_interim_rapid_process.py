@@ -86,7 +86,7 @@ def run_era_interim_rapid_process(rapid_executable_location,
                                   simulation_start_datetime,
                                   simulation_end_datetime=datetime.datetime.utcnow(),
                                   download_era_interim=False,
-                                  ensemble_list=[""],
+                                  ensemble_list=[None],
                                   generate_return_periods_file=False,
                                   ):
     """
@@ -117,9 +117,8 @@ def run_era_interim_rapid_process(rapid_executable_location,
 
     for ensemble in ensemble_list:
         ensemble_file_ending = ".nc"
-        if ensemble:
+        if ensemble != None:
             ensemble_file_ending = "_{}.nc".format(ensemble)
-        
         finished_looking = False
         #get list of files
         era_interim_file_list = []
@@ -163,6 +162,7 @@ def run_era_interim_rapid_process(rapid_executable_location,
         grid_type = ''
         if lat_dimension == 361 and lon_dimension == 720:
             #A) ERA Interim Low Res (T255)
+            #Downloaded as 0.5 degree grid
             # dimensions:
             #	 longitude = 720 ;
             #	 latitude = 361 ;
@@ -178,6 +178,7 @@ def run_era_interim_rapid_process(rapid_executable_location,
             grid_type = 't511'
         elif lat_dimension == 161 and lon_dimension == 320:
             #C) ERA 20CM (T159) - 3hr - 10 ensembles
+            #Downloaded as 1.125 degree grid
             # dimensions:
             #  longitude = 320 ;
             #  latitude = 161 ;    
@@ -233,7 +234,7 @@ def run_era_interim_rapid_process(rapid_executable_location,
             
             RAPIDinflowECMWF_tool.generateOutputInflowFile(out_nc=master_rapid_runoff_file,
                                                            in_weight_table=erai_weight_table_file,
-                                                           size_time=file_size_time*len(era_interim_file_list)+1,
+                                                           tot_size_time=file_size_time*len(era_interim_file_list),
                                                           )
     
             job_combinations = []
@@ -245,8 +246,16 @@ def run_era_interim_rapid_process(rapid_executable_location,
                                          erai_weight_table_file,
                                          grid_type,
                                          master_rapid_runoff_file))
+                """
+                downscale_erai((watershed.lower(), 
+                                         subbasin.lower(),
+                                         erai_file, 
+                                         erai_file_index,
+                                         erai_weight_table_file,
+                                         grid_type,
+                                         master_rapid_runoff_file))
+                """
                 
-    
             pool = multiprocessing.Pool()
             #chunksize=1 makes it so there is only one task per process
             pool.imap(downscale_erai, 
@@ -286,7 +295,6 @@ def run_era_interim_rapid_process(rapid_executable_location,
                 #assume storm has 3 day length, so step is file_size_time*3
                 generate_return_periods(era_rapid_output_file, return_periods_file, int(len(era_interim_file_list)/365), file_size_time*3)
     
-    
     #print info to user
     time_end = datetime.datetime.utcnow()
     print "Time Begin All: " + str(time_begin_all)
@@ -300,10 +308,11 @@ if __name__ == "__main__":
     run_era_interim_rapid_process(
         rapid_executable_location='/Users/rdchlads/autorapid/rapid/src/rapid',
         rapid_io_files_location='/Users/rdchlads/autorapid/rapid-io',
-        era_interim_data_location="/Users/rdchlads/autorapid/era_data/erai3_1980",
+        era_interim_data_location="/Users/rdchlads/autorapid/era_data/erai3_1980to2014",
         main_log_directory='/Users/rdchlads/autorapid/era_logs/',
         simulation_start_datetime=datetime.datetime(1980, 1, 1),
-        simulation_end_datetime=datetime.datetime(1980, 12, 31),
+        #simulation_end_datetime=datetime.datetime(1980, 1, 3),
+        #ensemble_list=range(10),
         download_era_interim=False,
-        generate_return_periods_file=True,
+        generate_return_periods_file=False,
     )

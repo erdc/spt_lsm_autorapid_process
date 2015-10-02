@@ -100,7 +100,7 @@ class CreateInflowFileFromERAInterimRunoff(object):
 
         self.size_streamID = len(set(self.dict_list[self.header_wt[0]]))
 
-    def generateOutputInflowFile(self, out_nc, in_weight_table, size_time):
+    def generateOutputInflowFile(self, out_nc, in_weight_table, tot_size_time):
         """
         Generate inflow file for RAPID
         """
@@ -110,7 +110,7 @@ class CreateInflowFileFromERAInterimRunoff(object):
         print "Generating inflow file"
         # data_out_nc = NET.Dataset(out_nc, "w") # by default format = "NETCDF4"
         data_out_nc = NET.Dataset(out_nc, "w", format = "NETCDF3_CLASSIC")
-        dim_Time = data_out_nc.createDimension('Time', size_time)
+        dim_Time = data_out_nc.createDimension('Time', tot_size_time)
         dim_RiverID = data_out_nc.createDimension(self.streamID, self.size_streamID)
         var_m3_riv = data_out_nc.createVariable('m3_riv', 'f4', 
                                                 ('Time', self.streamID),
@@ -137,9 +137,9 @@ class CreateInflowFileFromERAInterimRunoff(object):
         if size_time != self.length_time[id_data]:
             raise Exception(self.errorMessages[3])
 
-        tot_size_time = num_files * len(time)
         if not os.path.exists(out_nc):
-            self.generateOutputInflowFile(out_nc, in_weight_table, tot_size_time)
+            self.generateOutputInflowFile(out_nc, in_weight_table, 
+                                          tot_size_time=num_files*size_time)
         else:
             self.readInWeightTable(in_weight_table)
         
@@ -177,7 +177,7 @@ class CreateInflowFileFromERAInterimRunoff(object):
         data_subset_new = data_subset_all[:,index_new]
         # start compute inflow
         pointer = 0
-        for s in range(self.size_streamID):
+        for stream_index in range(self.size_streamID):
             npoints = int(self.dict_list[self.header_wt[4]][pointer])
             # Check if all npoints points correspond to the same streamID
             if len(set(self.dict_list[self.header_wt[0]][pointer : (pointer + npoints)])) != 1:
@@ -191,7 +191,7 @@ class CreateInflowFileFromERAInterimRunoff(object):
             data_goal = data_subset_new[:, pointer:(pointer + npoints)]
             if id_data == "Daily":
                 ro_stream = data_goal * area_sqm_npoints
-                data_out_nc.variables['m3_riv'][index,s] = ro_stream.sum(axis = 1)
+                data_out_nc.variables['m3_riv'][index,stream_index] = ro_stream.sum(axis = 1)
             else: #id_data == "3-Hourly
                 if grid_type == 't255':
                     #A) ERA Interim Low Res (T255) - data is cumulative
@@ -204,9 +204,8 @@ class CreateInflowFileFromERAInterimRunoff(object):
                 else:
                     #from time 3/6/9/12/15/18/21/24 (data is incremental)
                     ro_stream = data_goal * area_sqm_npoints
-                    
-                data_out_nc.variables['m3_riv'][index*size_time:(index+1)*size_time,s] = ro_stream.sum(axis = 1)
-                   
+
+                data_out_nc.variables['m3_riv'][index*size_time:(index+1)*size_time,stream_index] = ro_stream.sum(axis = 1)
                                 
             pointer += npoints
 
