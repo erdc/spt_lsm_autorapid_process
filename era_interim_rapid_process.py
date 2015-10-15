@@ -126,20 +126,20 @@ def run_era_interim_rapid_process(rapid_executable_location,
         for subdir, dirs, files in os.walk(era_interim_folder):
             for erai_file in files:
                 if erai_file.endswith(ensemble_file_ending):
-                    match = re.search(r'\d{8}', erai_file)
-                    file_date = datetime.datetime.strptime(match.group(0), "%Y%m%d")
-                    if file_date > simulation_end_datetime:
-                        print file_date
-                        finished_looking = True
-                        break
-                    if file_date >= simulation_start_datetime:
-                        era_interim_file_list.append(os.path.join(subdir, erai_file))
-                if finished_looking:
-                    break
-            if finished_looking:
+                    era_interim_file_list.append(os.path.join(subdir, erai_file))
+        
+	era_interim_file_list_subset = []
+        for erai_file in sorted(era_interim_file_list):
+            match = re.search(r'\d{8}', erai_file)
+            file_date = datetime.datetime.strptime(match.group(0), "%Y%m%d")
+            if file_date > simulation_end_datetime:
+                print file_date
+                finished_looking = True
                 break
-        print era_interim_file_list[0]
-        print era_interim_file_list[-1]
+            if file_date >= simulation_start_datetime:
+                era_interim_file_list_subset.append(os.path.join(subdir, erai_file))
+        print era_interim_file_list_subset[0]
+        print era_interim_file_list_subset[-1]
         
         era_interim_file_list = sorted(era_interim_file_list)
         
@@ -204,7 +204,7 @@ def run_era_interim_rapid_process(rapid_executable_location,
         #set up RAPID manager
         rapid_manager = RAPID(rapid_executable_location=rapid_executable_location,
                               cygwin_bin_location=cygwin_bin_location,
-                              #use_all_processors=True,                          
+                              use_all_processors=True,                          
                               ZS_TauR=time_step, #duration of routing procedure (time step of runoff data)
                               ZS_dtR=15*60, #internal routing time step
                               ZS_TauM=len(era_interim_file_list)*24*3600, #total simulation time 
@@ -227,11 +227,10 @@ def run_era_interim_rapid_process(rapid_executable_location,
             #create inflow to dump data into
             master_rapid_runoff_file = os.path.join(master_watershed_output_directory, 
                                                     'm3_riv_bas_erai_{}'.format(out_file_ending))
-                                                    
+            
             erai_weight_table_file = case_insensitive_file_search(master_watershed_input_directory,
                                                                   weight_file_name)
                                                                   
-    
             RAPIDinflowECMWF_tool = CreateInflowFileFromERAInterimRunoff()
             
             RAPIDinflowECMWF_tool.generateOutputInflowFile(out_nc=master_rapid_runoff_file,
@@ -248,15 +247,6 @@ def run_era_interim_rapid_process(rapid_executable_location,
                                          erai_weight_table_file,
                                          grid_type,
                                          master_rapid_runoff_file))
-                """
-                downscale_erai((watershed.lower(), 
-                                         subbasin.lower(),
-                                         erai_file, 
-                                         erai_file_index,
-                                         erai_weight_table_file,
-                                         grid_type,
-                                         master_rapid_runoff_file))
-                """
                 
             pool = multiprocessing.Pool()
             #chunksize=1 makes it so there is only one task per process
@@ -265,7 +255,6 @@ def run_era_interim_rapid_process(rapid_executable_location,
                       chunksize=1)
             pool.close()
             pool.join()
-    
             #run RAPID for the watershed
             era_rapid_output_file = os.path.join(master_watershed_output_directory,
                                                  'Qout_erai_{}'.format(out_file_ending))
@@ -281,16 +270,15 @@ def run_era_interim_rapid_process(rapid_executable_location,
                                                                                 r'x\.csv'),
                                             Qout_file=era_rapid_output_file
                                             )
-        
             comid_lat_lon_z_file = case_insensitive_file_search(master_watershed_input_directory,
                                                                 r'comid_lat_lon_z\.csv')
-    
+            
             rapid_manager.update_reach_number_data()
             rapid_manager.run()
             rapid_manager.make_output_CF_compliant(simulation_start_datetime=simulation_start_datetime,
                                                    comid_lat_lon_z_file=comid_lat_lon_z_file,
                                                    project_name="ERA Interim Historical flows by US Army ERDC")
-    
+            
             #generate return periods
             if generate_return_periods_file:
                 return_periods_file = os.path.join(master_watershed_output_directory, 'return_periods_{}'.format(out_file_ending))
@@ -302,19 +290,3 @@ def run_era_interim_rapid_process(rapid_executable_location,
     print "Time Begin All: " + str(time_begin_all)
     print "Time Finish All: " + str(time_end)
     print "TOTAL TIME: "  + str(time_end-time_begin_all)
-
-#------------------------------------------------------------------------------
-#main process
-#------------------------------------------------------------------------------
-if __name__ == "__main__":
-    run_era_interim_rapid_process(
-        rapid_executable_location='/Users/rdchlads/autorapid/rapid/src/rapid',
-        rapid_io_files_location='/Users/rdchlads/autorapid/rapid-io',
-        era_interim_data_location="/Users/rdchlads/autorapid/era_data/erai3_1980to2014",
-        main_log_directory='/Users/rdchlads/autorapid/era_logs/',
-        simulation_start_datetime=datetime.datetime(1980, 1, 1),
-        #simulation_end_datetime=datetime.datetime(1980, 1, 3),
-        #ensemble_list=range(10),
-        download_era_interim=False,
-        generate_return_periods_file=False,
-    )
