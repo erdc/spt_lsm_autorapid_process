@@ -31,6 +31,7 @@ def generate_return_periods(era_interim_file, return_period_file, num_years, ste
     timeSeries_var.long_name = (
         'Unique NHDPlus COMID identifier for each river reach feature')
 
+    max_flow_var = return_period_nc.createVariable('max_flow', 'f8', (id_dim_name,))
     return_period_20_var = return_period_nc.createVariable('return_period_20', 'f8', (id_dim_name,))
     return_period_10_var = return_period_nc.createVariable('return_period_10', 'f8', (id_dim_name,))
     return_period_2_var = return_period_nc.createVariable('return_period_2', 'f8', (id_dim_name,))
@@ -69,7 +70,8 @@ def generate_return_periods(era_interim_file, return_period_file, num_years, ste
         rp_index_20 = round((num_years + 1)/20.0, 0)
         rp_index_10 = round((num_years + 1)/10.0, 0)
         rp_index_2 = round((num_years + 1)/2.0, 0)
-
+        
+        max_flow_var[comid_index] = sorted_era_flow_data[0]
         return_period_20_var[comid_index] = sorted_era_flow_data[rp_index_20]
         return_period_10_var[comid_index] = sorted_era_flow_data[rp_index_10]
         return_period_2_var[comid_index] = sorted_era_flow_data[rp_index_2]
