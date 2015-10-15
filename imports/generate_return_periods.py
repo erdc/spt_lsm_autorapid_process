@@ -54,8 +54,6 @@ def generate_return_periods(era_interim_file, return_period_file, num_years, ste
     return_period_nc.variables['lat'][:] = era_interim_lat_data
     return_period_nc.variables['lon'][:] = era_interim_lon_data
 
-    era_flow_data = era_data_nc.variables['Qout'][0,:]
-
     print "Generating Return Periods ..."
 
     for comid_index, comid in enumerate(era_interim_comids):
