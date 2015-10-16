@@ -88,6 +88,10 @@ def run_era_interim_rapid_process(rapid_executable_location,
                                   download_era_interim=False,
                                   ensemble_list=[None],
                                   generate_return_periods_file=False,
+                                  ftp_host="",
+                                  ftp_login="",
+                                  ftp_passwd="",
+                                  ftp_directory="",
                                   cygwin_bin_location=""
                                   ):
     """
@@ -112,7 +116,8 @@ def run_era_interim_rapid_process(rapid_executable_location,
     if download_era_interim:
         #download historical ERA data
         era_interim_folders = download_all_ftp(era_interim_data_location,
-           'erai_runoff_1980to20*.tar.gz.tar')
+                                               'erai_runoff_1980to20*.tar.gz.tar', 
+                                               ftp_host, ftp_login, ftp_passwd, ftp_directory)
         era_interim_folder = era_interim_folders[0]
 
 
@@ -120,7 +125,6 @@ def run_era_interim_rapid_process(rapid_executable_location,
         ensemble_file_ending = ".nc"
         if ensemble != None:
             ensemble_file_ending = "_{}.nc".format(ensemble)
-        finished_looking = False
         #get list of files
         era_interim_file_list = []
         for subdir, dirs, files in os.walk(era_interim_folder):
@@ -128,13 +132,11 @@ def run_era_interim_rapid_process(rapid_executable_location,
                 if erai_file.endswith(ensemble_file_ending):
                     era_interim_file_list.append(os.path.join(subdir, erai_file))
         
-	era_interim_file_list_subset = []
+        era_interim_file_list_subset = []
         for erai_file in sorted(era_interim_file_list):
             match = re.search(r'\d{8}', erai_file)
             file_date = datetime.datetime.strptime(match.group(0), "%Y%m%d")
             if file_date > simulation_end_datetime:
-                print file_date
-                finished_looking = True
                 break
             if file_date >= simulation_start_datetime:
                 era_interim_file_list_subset.append(os.path.join(subdir, erai_file))
