@@ -25,9 +25,7 @@ $ exit
 ###Install on Redhat:
 *Note: this tool was desgined and tested in Ubuntu*
 ```
-$ yum install netcdf4-python
-$ yum install hdf5-devel
-$ yum install netcdf-devel
+$ yum install python-devel hdf5-devel netcdf-devel
 $ pip install numpy netCDF4
 ```
 ##Step 4: Install Other Python Libraries
@@ -53,17 +51,20 @@ $ mkdir rapid era_interim_data logs
 $ mkdir rapid/input
 ```
 ##Step 7: Change the locations in the files
-Go into *era_interim_rapid_process.py* and change these variables for your instance:
+Create  *run.py* and add this code (note: you will need to change these variables for your instance):
 ```python
 #------------------------------------------------------------------------------
 #main process
 #------------------------------------------------------------------------------
 if __name__ == "__main__":
+    from datetime import datetime
+    from era_interim_rapid_process import run_era_interim_rapid_process
     run_era_interim_rapid_process(
         rapid_executable_location='/home/alan/work/rapid/src/rapid',
         rapid_io_files_location='/home/alan/work/rapid-io',
         era_interim_data_location="/home/alan/work/era_interim",
         main_log_directory='/home/alan/work/era_logs/',
+        simulation_start_datetime=datetime(1980,1,1),
         download_era_interim=False,
         generate_return_periods_file=True,
     )
