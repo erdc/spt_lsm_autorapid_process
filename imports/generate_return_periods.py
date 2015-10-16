@@ -2,10 +2,8 @@
 #generate_return_periods.py
 import netCDF4 as nc
 import numpy as np
-import os
-from json import dumps
 
-def generate_return_periods(era_interim_file, return_period_file):
+def generate_return_periods(era_interim_file, return_period_file, num_years, step=7):
     """
     Create warning points from era interim data and ECMWD prediction data
 
@@ -33,6 +31,7 @@ def generate_return_periods(era_interim_file, return_period_file):
     timeSeries_var.long_name = (
         'Unique NHDPlus COMID identifier for each river reach feature')
 
+    max_flow_var = return_period_nc.createVariable('max_flow', 'f8', (id_dim_name,))
     return_period_20_var = return_period_nc.createVariable('return_period_20', 'f8', (id_dim_name,))
     return_period_10_var = return_period_nc.createVariable('return_period_10', 'f8', (id_dim_name,))
     return_period_2_var = return_period_nc.createVariable('return_period_2', 'f8', (id_dim_name,))
@@ -55,15 +54,11 @@ def generate_return_periods(era_interim_file, return_period_file):
     return_period_nc.variables['lat'][:] = era_interim_lat_data
     return_period_nc.variables['lon'][:] = era_interim_lon_data
 
-    era_flow_data = era_data_nc.variables['Qout'][0,:]
-    num_years = int(len(era_flow_data)/365)
-
     print "Generating Return Periods ..."
 
     for comid_index, comid in enumerate(era_interim_comids):
 
         era_flow_data = era_data_nc.variables['Qout'][comid_index,:]
-        step = 7
         filtered_era_flow_data = []
         for step_index in range(0,len(era_flow_data),step):
             flows_slice = era_flow_data[step_index:step_index + step]
@@ -73,7 +68,8 @@ def generate_return_periods(era_interim_file, return_period_file):
         rp_index_20 = round((num_years + 1)/20.0, 0)
         rp_index_10 = round((num_years + 1)/10.0, 0)
         rp_index_2 = round((num_years + 1)/2.0, 0)
-
+        
+        max_flow_var[comid_index] = sorted_era_flow_data[0]
         return_period_20_var[comid_index] = sorted_era_flow_data[rp_index_20]
         return_period_10_var[comid_index] = sorted_era_flow_data[rp_index_10]
         return_period_2_var[comid_index] = sorted_era_flow_data[rp_index_2]

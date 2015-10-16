@@ -20,9 +20,9 @@ class CreateInflowFileFromERAInterimRunoff(object):
                             "based on ERA Interim runoff results and "
                             "previously created weight table.")
         self.header_wt = ['StreamID', 'area_sqm', 'lon_index', 'lat_index', 'npoints', 'weight', 'Lon', 'Lat']
-        self.dims_oi = ['lon', 'lat', 'time']
-        self.vars_oi = ["lon", "lat", "time", "RO"]
-        self.length_time = 1
+        self.dims_oi = [['lon', 'lat', 'time'], ['longitude', 'latitude', 'time']]
+        self.vars_oi = [["lon", "lat", "time", "RO"], ['longitude', 'latitude', 'time', 'ro']]
+        self.length_time = {"Daily": 1, "3-Hourly": 8}
         self.errorMessages = ["Missing Variable 'time'",
                               "Incorrect dimensions in the input ERA Interim runoff file.",
                               "Incorrect variables in the input ERA Interim runoff file.",
@@ -34,18 +34,40 @@ class CreateInflowFileFromERAInterimRunoff(object):
 
     def dataValidation(self, in_nc):
         """Check the necessary dimensions and variables in the input netcdf data"""
-        data_nc = NET.Dataset(in_nc)
+        vars_oi_index = None
 
+        data_nc = NET.Dataset(in_nc)
+        
         dims = data_nc.dimensions.keys()
-        if dims != self.dims_oi:
+        if dims not in self.dims_oi:
             raise Exception(self.errorMessages[1])
 
         vars = data_nc.variables.keys()
-        if vars != self.vars_oi:
+        if vars == self.vars_oi[0]:
+            vars_oi_index = 0
+        elif vars == self.vars_oi[1]:
+            vars_oi_index = 1
+        else:    
             raise Exception(self.errorMessages[2])
 
-        return
+        return vars_oi_index
 
+
+    def dataIdentify(self, in_nc, vars_oi_index):
+        """Check if the data is daily (one value) or 3 hourly"""
+        data_nc = NET.Dataset(in_nc)
+        name_time = self.vars_oi[vars_oi_index][2]
+        time = data_nc.variables[name_time][:]
+        if len(time) == self.length_time["Daily"]:
+            return "Daily"
+        
+        diff = NUM.unique(NUM.diff(time))
+        data_nc.close()
+        time_interval_3hr = NUM.array([3.0],dtype=float)
+        if (diff == time_interval_3hr).all():
+            return "3-Hourly"
+        else:
+            return None
 
     def readInWeightTable(self, in_weight_table):
         """
@@ -78,7 +100,7 @@ class CreateInflowFileFromERAInterimRunoff(object):
 
         self.size_streamID = len(set(self.dict_list[self.header_wt[0]]))
 
-    def generateOutputInflowFile(self, out_nc, in_weight_table, size_time):
+    def generateOutputInflowFile(self, out_nc, in_weight_table, tot_size_time):
         """
         Generate inflow file for RAPID
         """
@@ -88,19 +110,36 @@ class CreateInflowFileFromERAInterimRunoff(object):
         print "Generating inflow file"
         # data_out_nc = NET.Dataset(out_nc, "w") # by default format = "NETCDF4"
         data_out_nc = NET.Dataset(out_nc, "w", format = "NETCDF3_CLASSIC")
-        dim_Time = data_out_nc.createDimension('Time', size_time)
+        dim_Time = data_out_nc.createDimension('Time', tot_size_time)
         dim_RiverID = data_out_nc.createDimension(self.streamID, self.size_streamID)
         var_m3_riv = data_out_nc.createVariable('m3_riv', 'f4', 
-                                                ('Time', self.streamID))
-        data_temp = NUM.empty(shape = [size_time, self.size_streamID])
+                                                ('Time', self.streamID),
+                                                fill_value=0)
         data_out_nc.close()
 
-    def execute(self, nc_file, index, in_weight_table, out_nc, size_time=0):
+    def execute(self, nc_file, index, in_weight_table, out_nc, grid_type, num_files=0):
         """The source code of the tool."""
 
         
+        # Validate the netcdf dataset
+        vars_oi_index = self.dataValidation(nc_file)
+
+        id_data = self.dataIdentify(nc_file, vars_oi_index)
+        if id_data is None:
+            raise Exception(self.errorMessages[3])
+
+        ''' Read the netcdf dataset'''
+        data_in_nc = NET.Dataset(nc_file)
+        time = data_in_nc.variables[self.vars_oi[vars_oi_index][2]][:]
+
+        # Check the size of time variable in the netcdf data
+        size_time = len(time)
+        if size_time != self.length_time[id_data]:
+            raise Exception(self.errorMessages[3])
+
         if not os.path.exists(out_nc):
-            self.generateOutputInflowFile(out_nc, in_weight_table, size_time)
+            self.generateOutputInflowFile(out_nc, in_weight_table, 
+                                          tot_size_time=num_files*size_time)
         else:
             self.readInWeightTable(in_weight_table)
         
@@ -115,21 +154,11 @@ class CreateInflowFileFromERAInterimRunoff(object):
         min_lat_ind_all = min(lat_ind_all)
         max_lat_ind_all = max(lat_ind_all)
 
-        # Validate the netcdf dataset
-        self.dataValidation(nc_file)
-
-        ''' Read the netcdf dataset'''
-        data_in_nc = NET.Dataset(nc_file)
-        time = data_in_nc.variables[self.vars_oi[2]][:]
-
-        # Check the size of time variable in the netcdf data
-        if len(time) != self.length_time:
-            raise Exception(self.errorMessages[3])
 
         '''Calculate water inflows'''
-        print "Calculating water inflows for", os.path.basename(nc_file) , "..."
+        print "Calculating water inflows for", os.path.basename(nc_file) , grid_type, "..."
 
-        data_subset_all = data_in_nc.variables[self.vars_oi[3]][:, min_lat_ind_all:max_lat_ind_all+1, min_lon_ind_all:max_lon_ind_all+1]
+        data_subset_all = data_in_nc.variables[self.vars_oi[vars_oi_index][3]][:, min_lat_ind_all:max_lat_ind_all+1, min_lon_ind_all:max_lon_ind_all+1]
         data_in_nc.close()
         len_time_subset_all = data_subset_all.shape[0]
         len_lat_subset_all = data_subset_all.shape[1]
@@ -146,10 +175,9 @@ class CreateInflowFileFromERAInterimRunoff(object):
 
         # obtain a new subset of data
         data_subset_new = data_subset_all[:,index_new]
-
         # start compute inflow
         pointer = 0
-        for s in range(0, self.size_streamID):
+        for stream_index in range(self.size_streamID):
             npoints = int(self.dict_list[self.header_wt[4]][pointer])
             # Check if all npoints points correspond to the same streamID
             if len(set(self.dict_list[self.header_wt[0]][pointer : (pointer + npoints)])) != 1:
@@ -160,23 +188,26 @@ class CreateInflowFileFromERAInterimRunoff(object):
             area_sqm_npoints = [float(k) for k in self.dict_list[self.header_wt[1]][pointer : (pointer + npoints)]]
             area_sqm_npoints = NUM.array(area_sqm_npoints)
             area_sqm_npoints = area_sqm_npoints.reshape(1, npoints)
-            ro_stream = data_subset_new[:, pointer:(pointer + npoints)] * area_sqm_npoints
-            data_out_nc.variables['m3_riv'][index,s] = ro_stream.sum(axis = 1)
+            data_goal = data_subset_new[:, pointer:(pointer + npoints)]
+            if id_data == "Daily":
+                ro_stream = data_goal * area_sqm_npoints
+                data_out_nc.variables['m3_riv'][index,stream_index] = ro_stream.sum(axis = 1)
+            else: #id_data == "3-Hourly
+                if grid_type == 't255':
+                    #A) ERA Interim Low Res (T255) - data is cumulative
+                    data_goal = data_goal.astype(NUM.float32)
+                    #from time 3/6/9/12 (time zero not included, so assumed to be zero)
+                    ro_first_half = NUM.concatenate([data_goal[0:1,], NUM.subtract(data_goal[1:4,], data_goal[0:3,])])
+                    #from time 15/18/21/24 (time restarts at time 12, assumed to be zero)
+                    ro_second_half = NUM.concatenate([data_goal[4:5,], NUM.subtract(data_goal[5:,], data_goal[4:7,])])
+                    ro_stream = NUM.concatenate([ro_first_half, ro_second_half]) * area_sqm_npoints
+                else:
+                    #from time 3/6/9/12/15/18/21/24 (data is incremental)
+                    ro_stream = data_goal * area_sqm_npoints
 
+                data_out_nc.variables['m3_riv'][index*size_time:(index+1)*size_time,stream_index] = ro_stream.sum(axis = 1)
+                                
             pointer += npoints
 
         # close the input and output netcdf datasets
         data_out_nc.close()
-
-if __name__ == "__main__":
-    calc = CreateInflowFileFromERAInterimRunoff()
-    in_nc_directory_path='/Users/Alan/Documents/RESEARCH/RAPID/ECMWF/erai_runoff_1980to2014/'
-    nc_files = []
-    for subdir, dirs, files in os.walk(in_nc_directory_path):
-        for file in files:
-            if file.endswith('.nc'):
-                nc_files.append(os.path.join(subdir, file))
-
-    calc.execute(in_sorted_nc_files=sorted(nc_files),
-                 in_weight_table='/Users/Alan/Documents/RESEARCH/RAPID/input/nfie_great_basin_region/rapid_updated/weight_era_interim.csv',
-                 out_nc='/Users/Alan/Documents/RESEARCH/RAPID/input/nfie_great_basin_region/rapid_updated/m3_era_1980_2014.nc')
