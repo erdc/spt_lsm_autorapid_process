@@ -57,11 +57,14 @@ Create  *run.py* and add this code (note: you will need to change these variable
 #main process
 #------------------------------------------------------------------------------
 if __name__ == "__main__":
+    from datetime import datetime
+    from era_interim_rapid_process import run_era_interim_rapid_process
     run_era_interim_rapid_process(
         rapid_executable_location='/home/alan/work/rapid/src/rapid',
         rapid_io_files_location='/home/alan/work/rapid-io',
         era_interim_data_location="/home/alan/work/era_interim",
         main_log_directory='/home/alan/work/era_logs/',
+        simulation_start_datetime=datetime(1980,1,1),
         download_era_interim=False,
         generate_return_periods_file=True,
     )
