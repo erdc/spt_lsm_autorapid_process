@@ -143,7 +143,7 @@ def run_era_interim_rapid_process(rapid_executable_location,
         print era_interim_file_list_subset[0]
         print era_interim_file_list_subset[-1]
         
-        era_interim_file_list = sorted(era_interim_file_list)
+        era_interim_file_list = sorted(era_interim_file_list_subset)
         
         #check to see what kind of file we are dealing with
         era_example_file = Dataset(era_interim_file_list[0])
