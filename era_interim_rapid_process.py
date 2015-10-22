@@ -148,15 +148,15 @@ def run_era_interim_rapid_process(rapid_executable_location,
         #check to see what kind of file we are dealing with
         era_example_file = Dataset(era_interim_file_list[0])
         
-        var_list = era_example_file.variables.keys()
+        dim_list = era_example_file.dimensions.keys()
         lat_key = 'lat'
-        if 'latitude' in var_list:
+        if 'latitude' in dim_list:
             lat_key = 'latitude'
-        lat_dimension = len(era_example_file.variables[lat_key][:])
+        lat_dimension = len(era_example_file.dimensions[lat_key])
         lon_key = 'lon'
-        if 'longitude' in var_list:
+        if 'longitude' in dim_list:
             lon_key = 'longitude'
-        lon_dimension = len(era_example_file.variables[lon_key][:])
+        lon_dimension = len(era_example_file.dimensions[lon_key])
     
         #identify grid type 
         out_file_ending = ensemble_file_ending
