@@ -8,6 +8,7 @@ import re
 
 #local imports
 from imports.CreateInflowFileFromERAInterimRunoff import CreateInflowFileFromERAInterimRunoff
+from imports.CreateInflowFileFromLISRunoff import CreateInflowFileFromLISRunoff
 from imports.ftp_ecmwf_download import download_all_ftp
 from imports.generate_return_periods import generate_return_periods
 
@@ -85,6 +86,12 @@ def run_era_interim_rapid_process(rapid_executable_location,
                                   main_log_directory,
                                   simulation_start_datetime,
                                   simulation_end_datetime=datetime.datetime.utcnow(),
+                                  latitude_dim="lat",
+                                  longitude_dim="lon",
+                                  latitude_var="lat",
+                                  longitude_var="lon",
+                                  surface_runoff_var="SRO",
+                                  subsurface_runoff_var="SSRO",
                                   download_era_interim=False,
                                   ensemble_list=[None],
                                   generate_return_periods_file=False,
@@ -138,9 +145,11 @@ def run_era_interim_rapid_process(rapid_executable_location,
             file_date = datetime.datetime.strptime(match.group(0), "%Y%m%d")
             if file_date > simulation_end_datetime:
                 break
+                print file_date
             if file_date >= simulation_start_datetime:
                 era_interim_file_list_subset.append(os.path.join(subdir, erai_file))
         print era_interim_file_list_subset[0]
+        actual_simulation_start_datetime = datetime.datetime.strptime(re.search(r'\d{8}', era_interim_file_list_subset[0]).group(0), "%Y%m%d")
         print era_interim_file_list_subset[-1]
         
         era_interim_file_list = sorted(era_interim_file_list_subset)
@@ -149,57 +158,94 @@ def run_era_interim_rapid_process(rapid_executable_location,
         era_example_file = Dataset(era_interim_file_list[0])
         
         dim_list = era_example_file.dimensions.keys()
-        lat_key = 'lat'
         if 'latitude' in dim_list:
-            lat_key = 'latitude'
-        lat_dimension = len(era_example_file.dimensions[lat_key])
-        lon_key = 'lon'
+            latitude_dim = 'latitude'
+        lat_dim_size = len(era_example_file.dimensions[latitude_dim])
         if 'longitude' in dim_list:
-            lon_key = 'longitude'
-        lon_dimension = len(era_example_file.dimensions[lon_key])
+            longitude_dim = 'longitude'
+        lon_dim_size = len(era_example_file.dimensions[longitude_dim])
     
-        #identify grid type 
+        #identify grid type and time step
         out_file_ending = ensemble_file_ending
             
         weight_file_name = ''
         grid_type = ''
-        if lat_dimension == 361 and lon_dimension == 720:
-            #A) ERA Interim Low Res (T255)
-            #Downloaded as 0.5 degree grid
-            # dimensions:
-            #	 longitude = 720 ;
-            #	 latitude = 361 ;
-            weight_file_name = r'weight_era_t255\.csv'
-            grid_type = 't255'
-
-        elif lat_dimension == 512 and lon_dimension == 1024:
-            #B) ERA Interim High Res (T511)
-            # dimensions:
-            #  lon = 1024 ;
-            #  lat = 512 ;
-            weight_file_name = r'weight_era_t511\.csv'
-            grid_type = 't511'
-        elif lat_dimension == 161 and lon_dimension == 320:
-            #C) ERA 20CM (T159) - 3hr - 10 ensembles
-            #Downloaded as 1.125 degree grid
-            # dimensions:
-            #  longitude = 320 ;
-            #  latitude = 161 ;    
-            weight_file_name = r'weight_era_t159\.csv'
-            grid_type = 't159'
-        else:
-            era_example_file.close()
-            raise Exception("Unsupported grid size.")
-            
-        file_size_time = len(era_example_file.variables['time'][:])
         time_step = 0
-        if file_size_time == 1:
-            time_step = 24*3600 #daily
-        elif file_size_time == 8:
-            time_step = 3*3600 #3 hourly
+        file_size_time = len(era_example_file.variables['time'][:])
+        description = ""
+        RAPIDinflowECMWF_tool = None
+        
+        if "institution" in era_example_file.ncattrs():
+            institutuion = era_example_file.getncattr("institution")
+            if institutuion == "European Centre for Medium-Range Weather Forecasts":
+                #these are the ECMWF models
+                if lat_dim_size == 361 and lon_dim_size == 720:
+                    #A) ERA Interim Low Res (T255)
+                    #Downloaded as 0.5 degree grid
+                    # dimensions:
+                    #	 longitude = 720 ;
+                    #	 latitude = 361 ;
+                    description = "ERA Interim (T255 Grid)"
+                    weight_file_name = r'weight_era_t255\.csv'
+                    grid_type = 't255'
+
+                elif lat_dim_size == 512 and lon_dim_size == 1024:
+                    #B) ERA Interim High Res (T511)
+                    # dimensions:
+                    #  lon = 1024 ;
+                    #  lat = 512 ;
+                    description = "ERA Interim (T511 Grid)"
+                    weight_file_name = r'weight_era_t511\.csv'
+                    grid_type = 't511'
+                elif lat_dim_size == 161 and lon_dim_size == 320:
+                    #C) ERA 20CM (T159) - 3hr - 10 ensembles
+                    #Downloaded as 1.125 degree grid
+                    # dimensions:
+                    #  longitude = 320 ;
+                    #  latitude = 161 ;    
+                    description = "ERA 20CM (T159 Grid)"
+                    weight_file_name = r'weight_era_t159\.csv'
+                    grid_type = 't159'
+                else:
+                    era_example_file.close()
+                    raise Exception("Unsupported grid size.")
+
+                #time units are in hours
+                if file_size_time == 1:
+                    time_step = 24*3600 #daily
+                    description += " Daily Runoff"
+                elif file_size_time == 8:
+                    time_step = 3*3600 #3 hourly
+                    description += " 3 Hourly Runoff"
+                else:
+                    era_example_file.close()
+                    raise Exception("Unsupported ECMWF time step.")
+                 
+                RAPIDinflowECMWF_tool = CreateInflowFileFromERAInterimRunoff()                 
+            elif institutuion == "NASA GSFC":
+                #this is the LIS model
+                weight_file_name = r'weight_lis\.csv'
+                grid_type = 'lis'
+                description = "NASA GFC LIS Hourly Runoff"
+                #time units are in minutes
+                if file_size_time == 1:
+                    time_step = 1*3600 #hourly
+                else:
+                    era_example_file.close()
+                    raise Exception("Unsupported LIS time step.")
+
+                RAPIDinflowECMWF_tool = CreateInflowFileFromLISRunoff(latitude_dim,
+                                                                      longitude_dim,
+                                                                      latitude_var,
+                                                                      longitude_var,
+                                                                      surface_runoff_var,
+                                                                      subsurface_runoff_var)
+               
+            else:
+                raise Exception("Unsupported runoff grid.")
         else:
             era_example_file.close()
-            raise Exception("Unsupported time step.")
+            raise Exception("Unsupported runoff grid.")
         era_example_file.close()
     
         out_file_ending = "{0}_{1}{2}".format(grid_type, time_step/3600, out_file_ending)
@@ -209,7 +255,7 @@ def run_era_interim_rapid_process(rapid_executable_location,
                               use_all_processors=True,                          
                               ZS_TauR=time_step, #duration of routing procedure (time step of runoff data)
                               ZS_dtR=15*60, #internal routing time step
-                              ZS_TauM=len(era_interim_file_list)*24*3600, #total simulation time 
+                              ZS_TauM=len(era_interim_file_list)*time_step*file_size_time, #total simulation time 
                               ZS_dtM=time_step #input time step 
                              )
     
@@ -232,8 +278,6 @@ def run_era_interim_rapid_process(rapid_executable_location,
             
             erai_weight_table_file = case_insensitive_file_search(master_watershed_input_directory,
                                                                   weight_file_name)
-                                                                  
-            RAPIDinflowECMWF_tool = CreateInflowFileFromERAInterimRunoff()
             
             RAPIDinflowECMWF_tool.generateOutputInflowFile(out_nc=master_rapid_runoff_file,
                                                            in_weight_table=erai_weight_table_file,
@@ -277,9 +321,9 @@ def run_era_interim_rapid_process(rapid_executable_location,
             
             rapid_manager.update_reach_number_data()
             rapid_manager.run()
-            rapid_manager.make_output_CF_compliant(simulation_start_datetime=simulation_start_datetime,
+            rapid_manager.make_output_CF_compliant(simulation_start_datetime=actual_simulation_start_datetime,
                                                    comid_lat_lon_z_file=comid_lat_lon_z_file,
-                                                   project_name="ERA Interim Historical flows by US Army ERDC")
+                                                   project_name="{} Based Historical flows by US Army ERDC".format(description))
             
             #generate return periods
             if generate_return_periods_file:
