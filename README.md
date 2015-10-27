@@ -14,24 +14,20 @@ Here is a script to download prereqs: http://rapid-hub.org/data/rapid_install_pr
 ##Step 2: Install AutoRoute
 For instructions, go to: https://github.com/erdc-cm/AutoRoute/tree/gdal
 
-##Step 3: Install netCDF4-python
+##Step 3: Install netCDF4
 ###Install on Ubuntu:
 ```
 $ apt-get install python-dev zlib1g-dev libhdf5-serial-dev libnetcdf-dev
-$ sudo su
-$ pip install numpy netCDF4
-$ exit
 ```
 ###Install on Redhat:
 *Note: this tool was desgined and tested in Ubuntu*
 ```
 $ yum install python-devel hdf5-devel netcdf-devel
-$ pip install numpy netCDF4
 ```
-##Step 4: Install Other Python Libraries
+##Step 4: Install Python Libraries
 ```
 $ sudo su
-$ pip install requests_toolbelt tethys_dataset_services RAPIDpy
+$ pip install netCDF4 RAPIDpy requests_toolbelt tethys_dataset_services 
 $ exit
 ```
 
