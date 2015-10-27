@@ -10,7 +10,8 @@ $ apt-get install gfortran g++
 ```
 Follow the instructions on page 10-14: http://rapid-hub.org/docs/RAPID_Azure.pdf.
 
-Here is a script to download prereqs: http://rapid-hub.org/data/rapid_install_prereqs.sh.gz
+Here is a script to download prereqs: http://rapid-hub.org/data/rapid_install_prereqs.tar.gz
+
 ##Step 2: Install AutoRoute
 For instructions, go to: https://github.com/erdc-cm/AutoRoute/tree/gdal
 
