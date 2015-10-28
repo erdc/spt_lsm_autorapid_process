@@ -8,7 +8,7 @@ import re
 
 #local imports
 from imports.CreateInflowFileFromERAInterimRunoff import CreateInflowFileFromERAInterimRunoff
-from imports.CreateInflowFileFromLISRunoff import CreateInflowFileFromLISRunoff
+from imports.CreateInflowFileFromLDASRunoff import CreateInflowFileFromLDASRunoff
 from imports.ftp_ecmwf_download import download_all_ftp
 from imports.generate_return_periods import generate_return_periods
 
@@ -48,9 +48,9 @@ def case_insensitive_file_search(directory, pattern):
 #------------------------------------------------------------------------------
 #MAIN PROCESSES
 #------------------------------------------------------------------------------
-def downscale_erai(args):
+def generate_inflows_from_runoff(args):
     """
-    prepare all ECMWF files for rapid
+    prepare runoff inflow file for rapid
     """
     watershed = args[0]
     subbasin = args[1]
@@ -59,17 +59,15 @@ def downscale_erai(args):
     erai_weight_table_file = args[4]
     grid_type = args[5]
     rapid_inflow_file = args[6]
-
+    RAPIDinflowECMWF_tool = args[7]
 
     time_start_all = datetime.datetime.utcnow()
 
     #prepare ECMWF file for RAPID
-    print "ERAI downscaling for:", watershed, subbasin, \
+    print "Runoff downscaling for:", watershed, subbasin, \
           erai_file_index, rapid_inflow_file
 
-    print "Converting ERAI inflow"
-    RAPIDinflowECMWF_tool = CreateInflowFileFromERAInterimRunoff()
-
+    print "Converting inflow"
     RAPIDinflowECMWF_tool.execute(nc_file=era_interim_file,
                                   index=erai_file_index,
                                   in_weight_table=erai_weight_table_file,
@@ -78,7 +76,7 @@ def downscale_erai(args):
                                   )
 
     time_finish_ecmwf = datetime.datetime.utcnow()
-    print "Time to convert ECMWF: %s" % (time_finish_ecmwf-time_start_all)
+    print "Time to convert inflows: %s" % (time_finish_ecmwf-time_start_all)
 
 def run_era_interim_rapid_process(rapid_executable_location, 
                                   rapid_io_files_location, 
@@ -86,12 +84,6 @@ def run_era_interim_rapid_process(rapid_executable_location,
                                   main_log_directory,
                                   simulation_start_datetime,
                                   simulation_end_datetime=datetime.datetime.utcnow(),
-                                  latitude_dim="lat",
-                                  longitude_dim="lon",
-                                  latitude_var="lat",
-                                  longitude_var="lon",
-                                  surface_runoff_var="SRO",
-                                  subsurface_runoff_var="SSRO",
                                   download_era_interim=False,
                                   ensemble_list=[None],
                                   generate_return_periods_file=False,
@@ -157,21 +149,89 @@ def run_era_interim_rapid_process(rapid_executable_location,
         #check to see what kind of file we are dealing with
         era_example_file = Dataset(era_interim_file_list[0])
         
+    
+        
+        #INDENTIFY LAT/LON DIMENSIONS
         dim_list = era_example_file.dimensions.keys()
+
+        latitude_dim = "lat"
         if 'latitude' in dim_list:
             latitude_dim = 'latitude'
-        lat_dim_size = len(era_example_file.dimensions[latitude_dim])
+        elif 'g0_lat_0' in dim_list:
+            #GLDAS/NLDAS MOSAIC
+            latitude_dim = 'g0_lat_0'
+        elif 'lat_110' in dim_list:
+            #NLDAS NOAH/VIC
+            latitude_dim = 'lat_110'
+        elif 'north_south' in dim_list:
+            #LIS
+            latitude_dim = 'north_south'
+        
+        longitude_dim = "lon"
         if 'longitude' in dim_list:
             longitude_dim = 'longitude'
+        elif 'g0_lon_1' in dim_list:
+            #GLDAS/NLDAS MOSAIC
+            longitude_dim = 'g0_lon_1'
+        elif 'lon_110' in dim_list:
+            #NLDAS NOAH/VIC
+            longitude_dim = 'lon_110'
+        elif 'east_west' in dim_list:
+            #LIS
+            longitude_dim = 'east_west'
+        
+        lat_dim_size = len(era_example_file.dimensions[latitude_dim])
         lon_dim_size = len(era_example_file.dimensions[longitude_dim])
-    
-        #identify grid type and time step
+
+        #IDENTIFY VARIABLES
+        var_list = era_example_file.variables.keys()
+        
+        latitude_var="lat"
+        if 'latitude' in var_list:
+            latitude_var = 'latitude'
+        elif 'g0_lat_0' in var_list:
+            latitude_var = 'g0_lat_0'
+        elif 'lat_110' in var_list:
+            latitude_var = 'lat_110'
+        
+        longitude_var="lon"
+        if 'longitude' in var_list:
+            longitude_var = 'longitude'
+        elif 'g0_lon_1' in var_list:
+            longitude_var = 'g0_lon_1'
+        elif 'lon_110' in var_list:
+            longitude_var = 'lon_110'
+        
+        surface_runoff_var="RO"
+        subsurface_runoff_var=""
+        for var in var_list:
+            if var.startswith("SSRUN"):
+                #NLDAS/GLDAS
+                surface_runoff_var = var
+            elif var.startswith("BGRUN"):
+                #NLDAS/GLDAS
+                subsurface_runoff_var = var
+            elif var == "Qs_inst":
+                #LIS
+                surface_runoff_var = var
+            elif var == "Qsb_inst":
+                #LIS
+                subsurface_runoff_var = var
+            
+
+
+        #IDENTIFY GRID TYPE & TIME STEP
+        if 'time' in var_list:
+            file_size_time = len(era_example_file.variables['time'][:])
+        else:
+            print "Assuming time dimension is 1"
+            file_size_time = 1
+
         out_file_ending = ensemble_file_ending
             
         weight_file_name = ''
         grid_type = ''
         time_step = 0
-        file_size_time = len(era_example_file.variables['time'][:])
         description = ""
         RAPIDinflowECMWF_tool = None
         
@@ -180,6 +240,7 @@ def run_era_interim_rapid_process(rapid_executable_location,
             if institutuion == "European Centre for Medium-Range Weather Forecasts":
                 #these are the ECMWF models
                 if lat_dim_size == 361 and lon_dim_size == 720:
+                    print "Runoff file identified as ERA Interim Low Res (T255) GRID"
                     #A) ERA Interim Low Res (T255)
                     #Downloaded as 0.5 degree grid
                     # dimensions:
@@ -190,6 +251,7 @@ def run_era_interim_rapid_process(rapid_executable_location,
                     grid_type = 't255'
 
                 elif lat_dim_size == 512 and lon_dim_size == 1024:
+                    print "Runoff file identified as ERA Interim High Res (T511) GRID"
                     #B) ERA Interim High Res (T511)
                     # dimensions:
                     #  lon = 1024 ;
@@ -198,6 +260,7 @@ def run_era_interim_rapid_process(rapid_executable_location,
                     weight_file_name = r'weight_era_t511\.csv'
                     grid_type = 't511'
                 elif lat_dim_size == 161 and lon_dim_size == 320:
+                    print "Runoff file identified as ERA 20CM (T159) GRID"
                     #C) ERA 20CM (T159) - 3hr - 10 ensembles
                     #Downloaded as 1.125 degree grid
                     # dimensions:
@@ -223,6 +286,7 @@ def run_era_interim_rapid_process(rapid_executable_location,
                  
                 RAPIDinflowECMWF_tool = CreateInflowFileFromERAInterimRunoff()                 
             elif institutuion == "NASA GSFC":
+                print "Runoff file identified as LIS GRID"
                 #this is the LIS model
                 weight_file_name = r'weight_lis\.csv'
                 grid_type = 'lis'
@@ -234,18 +298,70 @@ def run_era_interim_rapid_process(rapid_executable_location,
                     era_example_file.close()
                     raise Exception("Unsupported LIS time step.")
 
-                RAPIDinflowECMWF_tool = CreateInflowFileFromLISRunoff(latitude_dim,
-                                                                      longitude_dim,
-                                                                      latitude_var,
-                                                                      longitude_var,
-                                                                      surface_runoff_var,
-                                                                      subsurface_runoff_var)
+                RAPIDinflowECMWF_tool = CreateInflowFileFromLDASRunoff(latitude_dim,
+                                                                       longitude_dim,
+                                                                       latitude_var,
+                                                                       longitude_var,
+                                                                       surface_runoff_var,
+                                                                       subsurface_runoff_var,
+                                                                       time_step)
                
             else:
                 raise Exception("Unsupported runoff grid.")
-        else:
-            era_example_file.close()
-            raise Exception("Unsupported runoff grid.")
+        elif surface_runoff_var.startswith("SSRUN") \
+            and subsurface_runoff_var.startswith("BGRUN"):
+            
+            if lat_dim_size == 600 and lon_dim_size == 1440:
+                print "Runoff file identified as GLDAS GRID"
+                #GLDAS NC FILE
+                #dimensions:
+                #    g0_lat_0 = 600 ;
+                #    g0_lon_1 = 1440 ;
+                #variables
+                #SSRUN_GDS0_SFC_ave1h (surface), BGRUN_GDS0_SFC_ave1h (subsurface)
+                # or
+                #SSRUNsfc_GDS0_SFC_ave1h (surface), BGRUNsfc_GDS0_SFC_ave1h (subsurface)
+                description = "GLDAS 3 Hourly Runoff"
+                weight_file_name = r'weight_gldas\.csv'
+                grid_type = 'gldas'
+ 
+                if file_size_time == 1:
+                    time_step = 3*3600 #3 hourly
+                else:
+                    era_example_file.close()
+                    raise Exception("Unsupported GLDAS time step.")
+
+            elif lat_dim_size <= 224 and lon_dim_size <= 464:
+                print "Runoff file identified as NLDAS GRID"
+                #NLDAS MOSAIC FILE
+                #dimensions:
+                #    g0_lat_0 = 224 ;
+                #    g0_lon_1 = 464 ;
+                #NLDAS NOAH/VIC FILE
+                #dimensions:
+                #    lat_110 = 224 ;
+                #    lon_110 = 464 ;
+
+                description = "NLDAS Hourly Runoff"
+                weight_file_name = r'weight_nldas\.csv'
+                grid_type = 'nldas'
+
+                if file_size_time == 1:
+                    time_step = 1*3600 #hourly
+                else:
+                    era_example_file.close()
+                    raise Exception("Unsupported NLDAS time step.")
+            else:
+                era_example_file.close()
+                raise Exception("Unsupported runoff grid.")
+
+            RAPIDinflowECMWF_tool = CreateInflowFileFromLDASRunoff(latitude_dim,
+                                                                   longitude_dim,
+                                                                   latitude_var,
+                                                                   longitude_var,
+                                                                   surface_runoff_var,
+                                                                   subsurface_runoff_var,
+                                                                   time_step)
         era_example_file.close()
     
         out_file_ending = "{0}_{1}{2}".format(grid_type, time_step/3600, out_file_ending)
@@ -292,11 +408,19 @@ def run_era_interim_rapid_process(rapid_executable_location,
                                          erai_file_index,
                                          erai_weight_table_file,
                                          grid_type,
-                                         master_rapid_runoff_file))
-                
+                                         master_rapid_runoff_file,
+                                         RAPIDinflowECMWF_tool))
+                #generate_inflows_from_runoff((watershed.lower(), 
+                #                         subbasin.lower(),
+                #                         erai_file, 
+                #                         erai_file_index,
+                #                         erai_weight_table_file,
+                #                         grid_type,
+                #                         master_rapid_runoff_file,
+                #                         RAPIDinflowECMWF_tool))
             pool = multiprocessing.Pool()
             #chunksize=1 makes it so there is only one task per process
-            pool.imap(downscale_erai, 
+            pool.imap(generate_inflows_from_runoff, 
                       job_combinations,
                       chunksize=1)
             pool.close()
@@ -330,7 +454,6 @@ def run_era_interim_rapid_process(rapid_executable_location,
                 return_periods_file = os.path.join(master_watershed_output_directory, 'return_periods_{}'.format(out_file_ending))
                 #assume storm has 3 day length, so step is file_size_time*3
                 generate_return_periods(era_rapid_output_file, return_periods_file, int(len(era_interim_file_list)/365), file_size_time*3)
-    
     #print info to user
     time_end = datetime.datetime.utcnow()
     print "Time Begin All: " + str(time_begin_all)
