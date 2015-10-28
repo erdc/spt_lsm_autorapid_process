@@ -171,11 +171,10 @@ class CreateInflowFileFromLDASRunoff(object):
         data_subset_subsurface_new = data_subset_subsurface_runoff[index_new]
         
         # start compute inflow
-        conversion_factor = 1/1000 #convert from kg/m^2 (i.e. mm) to m
+        conversion_factor = 1.0/1000 #convert from kg/m^2 (i.e. mm) to m
         if "s" in data_in_nc.variables[self.vars_oi[2]].getncattr("units"):
             #that means kg/m^2/s
             conversion_factor *= self.time_step_seconds
-            
         data_in_nc.close()
 
         pointer = 0
@@ -201,7 +200,6 @@ class CreateInflowFileFromLDASRunoff(object):
                     data_out_nc.variables['m3_riv'][index,stream_index] = ro_stream.sum()
                 else:
                     raise
-                
                                 
             pointer += npoints
 
