@@ -372,7 +372,7 @@ def run_era_interim_rapid_process(rapid_executable_location,
                               ZS_TauR=time_step, #duration of routing procedure (time step of runoff data)
                               ZS_dtR=15*60, #internal routing time step
                               ZS_TauM=len(era_interim_file_list)*time_step*file_size_time, #total simulation time 
-                              ZS_dtM=time_step #input time step 
+                              ZS_dtM=86400 #recommended in docs for 1 day
                              )
     
         #run ERA Interim processes
