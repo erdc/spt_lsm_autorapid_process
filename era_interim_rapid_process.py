@@ -143,6 +143,7 @@ def run_era_interim_rapid_process(rapid_executable_location,
         print era_interim_file_list_subset[0]
         actual_simulation_start_datetime = datetime.datetime.strptime(re.search(r'\d{8}', era_interim_file_list_subset[0]).group(0), "%Y%m%d")
         print era_interim_file_list_subset[-1]
+        actual_simulation_end_datetime = datetime.datetime.strptime(re.search(r'\d{8}', era_interim_file_list_subset[-1]).group(0), "%Y%m%d")
         
         era_interim_file_list = sorted(era_interim_file_list_subset)
         
@@ -227,10 +228,13 @@ def run_era_interim_rapid_process(rapid_executable_location,
             print "Assuming time dimension is 1"
             file_size_time = 1
 
-        out_file_ending = ensemble_file_ending
+        out_file_ending = "{0}to{1}{2}".format(actual_simulation_start_datetime.strftime("%Y%m%d"), 
+                                               actual_simulation_end_datetime.strftime("%Y%m%d"), 
+                                               ensemble_file_ending)
             
         weight_file_name = ''
         grid_type = ''
+        model_name = ''
         time_step = 0
         description = ""
         RAPIDinflowECMWF_tool = None
@@ -247,6 +251,7 @@ def run_era_interim_rapid_process(rapid_executable_location,
                     #	 longitude = 720 ;
                     #	 latitude = 361 ;
                     description = "ERA Interim (T255 Grid)"
+                    model_name = "erai"
                     weight_file_name = r'weight_era_t255\.csv'
                     grid_type = 't255'
 
@@ -258,6 +263,7 @@ def run_era_interim_rapid_process(rapid_executable_location,
                     #  lat = 512 ;
                     description = "ERA Interim (T511 Grid)"
                     weight_file_name = r'weight_era_t511\.csv'
+                    model_name = "erai"
                     grid_type = 't511'
                 elif lat_dim_size == 161 and lon_dim_size == 320:
                     print "Runoff file identified as ERA 20CM (T159) GRID"
@@ -268,6 +274,7 @@ def run_era_interim_rapid_process(rapid_executable_location,
                     #  latitude = 161 ;    
                     description = "ERA 20CM (T159 Grid)"
                     weight_file_name = r'weight_era_t159\.csv'
+                    model_name = "era_20cm"
                     grid_type = 't159'
                 else:
                     era_example_file.close()
@@ -291,6 +298,7 @@ def run_era_interim_rapid_process(rapid_executable_location,
                 weight_file_name = r'weight_lis\.csv'
                 grid_type = 'lis'
                 description = "NASA GFC LIS Hourly Runoff"
+                model_name = "nasa"
                 #time units are in minutes
                 if file_size_time == 1:
                     time_step = 1*3600 #hourly
@@ -310,7 +318,8 @@ def run_era_interim_rapid_process(rapid_executable_location,
                 raise Exception("Unsupported runoff grid.")
         elif surface_runoff_var.startswith("SSRUN") \
             and subsurface_runoff_var.startswith("BGRUN"):
-            
+
+            model_name = "nasa"
             if lat_dim_size == 600 and lon_dim_size == 1440:
                 print "Runoff file identified as GLDAS GRID"
                 #GLDAS NC FILE
@@ -364,15 +373,15 @@ def run_era_interim_rapid_process(rapid_executable_location,
                                                                    time_step)
         era_example_file.close()
     
-        out_file_ending = "{0}_{1}{2}".format(grid_type, time_step/3600, out_file_ending)
+        out_file_ending = "{0}_{1}_{2}hr_{3}".format(model_name, grid_type, time_step/3600, out_file_ending)
         #set up RAPID manager
         rapid_manager = RAPID(rapid_executable_location=rapid_executable_location,
                               cygwin_bin_location=cygwin_bin_location,
-                              use_all_processors=True,                          
+                              #use_all_processors=True,                          
                               ZS_TauR=time_step, #duration of routing procedure (time step of runoff data)
                               ZS_dtR=15*60, #internal routing time step
                               ZS_TauM=len(era_interim_file_list)*time_step*file_size_time, #total simulation time 
-                              ZS_dtM=time_step #input time step 
+                              ZS_dtM=86400 #RAPID internal time step (1 day)
                              )
     
         #run ERA Interim processes
@@ -390,11 +399,10 @@ def run_era_interim_rapid_process(rapid_executable_location,
     
             #create inflow to dump data into
             master_rapid_runoff_file = os.path.join(master_watershed_output_directory, 
-                                                    'm3_riv_bas_erai_{}'.format(out_file_ending))
+                                                    'm3_riv_bas_{}'.format(out_file_ending))
             
             erai_weight_table_file = case_insensitive_file_search(master_watershed_input_directory,
                                                                   weight_file_name)
-            
             RAPIDinflowECMWF_tool.generateOutputInflowFile(out_nc=master_rapid_runoff_file,
                                                            in_weight_table=erai_weight_table_file,
                                                            tot_size_time=file_size_time*len(era_interim_file_list),
@@ -411,13 +419,13 @@ def run_era_interim_rapid_process(rapid_executable_location,
                                          master_rapid_runoff_file,
                                          RAPIDinflowECMWF_tool))
                 #generate_inflows_from_runoff((watershed.lower(), 
-                #                         subbasin.lower(),
-                #                         erai_file, 
-                #                         erai_file_index,
-                #                         erai_weight_table_file,
-                #                         grid_type,
-                #                         master_rapid_runoff_file,
-                #                         RAPIDinflowECMWF_tool))
+                #                              subbasin.lower(),
+                #                              erai_file, 
+                #                              erai_file_index,
+                #                              erai_weight_table_file,
+                #                              grid_type,
+                #                              master_rapid_runoff_file,
+                #                              RAPIDinflowECMWF_tool))
             pool = multiprocessing.Pool()
             #chunksize=1 makes it so there is only one task per process
             pool.imap(generate_inflows_from_runoff, 
@@ -427,7 +435,7 @@ def run_era_interim_rapid_process(rapid_executable_location,
             pool.join()
             #run RAPID for the watershed
             era_rapid_output_file = os.path.join(master_watershed_output_directory,
-                                                 'Qout_erai_{}'.format(out_file_ending))
+                                                 'Qout_{}'.format(out_file_ending))
                                                  
             rapid_manager.update_parameters(rapid_connect_file=case_insensitive_file_search(master_watershed_input_directory,
                                                                                          r'rapid_connect\.csv'),
@@ -454,6 +462,7 @@ def run_era_interim_rapid_process(rapid_executable_location,
                 return_periods_file = os.path.join(master_watershed_output_directory, 'return_periods_{}'.format(out_file_ending))
                 #assume storm has 3 day length, so step is file_size_time*3
                 generate_return_periods(era_rapid_output_file, return_periods_file, int(len(era_interim_file_list)/365), file_size_time*3)
+
     #print info to user
     time_end = datetime.datetime.utcnow()
     print "Time Begin All: " + str(time_begin_all)
