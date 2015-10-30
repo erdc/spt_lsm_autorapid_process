@@ -1,7 +1,5 @@
 # spt_erai_autorapid_process
-Code to use to prepare input data for RAPID from ECMWF forecast using HTCondor
-
-Note: For steps 1-2, use the *install_rapid_htcondor.sh* at your own risk.
+Code to use to prepare input data for RAPID from ECMWF ERA Interim Data or NASA GLDAS/NLDAS/LIS data.
 
 ##Step 1: Install RAPID and RAPIDpy
 See: https://github.com/erdc-cm/RAPIDpy
