@@ -460,8 +460,9 @@ def run_era_interim_rapid_process(rapid_executable_location,
             #generate return periods
             if generate_return_periods_file:
                 return_periods_file = os.path.join(master_watershed_output_directory, 'return_periods_{}'.format(out_file_ending))
-                #assume storm has 3 day length, so step is file_size_time*3
-                generate_return_periods(era_rapid_output_file, return_periods_file, int(len(era_interim_file_list)/365), file_size_time*3)
+                #assume storm has 3 day length
+                storm_time_step_length = int(3*len(era_interim_file_list)*time_step/3600*file_size_time/24)
+                generate_return_periods(era_rapid_output_file, return_periods_file, int(len(era_interim_file_list)/365), storm_time_step_length)
 
     #print info to user
     time_end = datetime.datetime.utcnow()
