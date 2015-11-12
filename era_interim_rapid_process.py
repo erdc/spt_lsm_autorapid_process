@@ -203,7 +203,7 @@ def run_era_interim_rapid_process(rapid_executable_location,
         elif 'lon_110' in var_list:
             longitude_var = 'lon_110'
         
-        surface_runoff_var="RO"
+        surface_runoff_var=""
         subsurface_runoff_var=""
         for var in var_list:
             if var.startswith("SSRUN"):
@@ -218,6 +218,8 @@ def run_era_interim_rapid_process(rapid_executable_location,
             elif var == "Qsb_inst":
                 #LIS
                 subsurface_runoff_var = var
+            elif var.lower() == "ro":
+                surface_runoff_var = var
             
 
 
@@ -239,83 +241,86 @@ def run_era_interim_rapid_process(rapid_executable_location,
         description = ""
         RAPIDinflowECMWF_tool = None
         
-        if "institution" in era_example_file.ncattrs():
-            institutuion = era_example_file.getncattr("institution")
-            if institutuion == "European Centre for Medium-Range Weather Forecasts":
-                #these are the ECMWF models
-                if lat_dim_size == 361 and lon_dim_size == 720:
-                    print "Runoff file identified as ERA Interim Low Res (T255) GRID"
-                    #A) ERA Interim Low Res (T255)
-                    #Downloaded as 0.5 degree grid
-                    # dimensions:
-                    #	 longitude = 720 ;
-                    #	 latitude = 361 ;
-                    description = "ERA Interim (T255 Grid)"
-                    model_name = "erai"
-                    weight_file_name = r'weight_era_t255\.csv'
-                    grid_type = 't255'
+        institution = ""
+        try:
+            institution = era_example_file.getncattr("institution")
+        except AttributeError:
+            pass
+        
+        if institution == "European Centre for Medium-Range Weather Forecasts" \
+            or surface_runoff_var.lower() == "ro":
+            #these are the ECMWF models
+            if lat_dim_size == 361 and lon_dim_size == 720:
+                print "Runoff file identified as ERA Interim Low Res (T255) GRID"
+                #A) ERA Interim Low Res (T255)
+                #Downloaded as 0.5 degree grid
+                # dimensions:
+                #	 longitude = 720 ;
+                #	 latitude = 361 ;
+                description = "ERA Interim (T255 Grid)"
+                model_name = "erai"
+                weight_file_name = r'weight_era_t255\.csv'
+                grid_type = 't255'
 
-                elif lat_dim_size == 512 and lon_dim_size == 1024:
-                    print "Runoff file identified as ERA Interim High Res (T511) GRID"
-                    #B) ERA Interim High Res (T511)
-                    # dimensions:
-                    #  lon = 1024 ;
-                    #  lat = 512 ;
-                    description = "ERA Interim (T511 Grid)"
-                    weight_file_name = r'weight_era_t511\.csv'
-                    model_name = "erai"
-                    grid_type = 't511'
-                elif lat_dim_size == 161 and lon_dim_size == 320:
-                    print "Runoff file identified as ERA 20CM (T159) GRID"
-                    #C) ERA 20CM (T159) - 3hr - 10 ensembles
-                    #Downloaded as 1.125 degree grid
-                    # dimensions:
-                    #  longitude = 320 ;
-                    #  latitude = 161 ;    
-                    description = "ERA 20CM (T159 Grid)"
-                    weight_file_name = r'weight_era_t159\.csv'
-                    model_name = "era_20cm"
-                    grid_type = 't159'
-                else:
-                    era_example_file.close()
-                    raise Exception("Unsupported grid size.")
-
-                #time units are in hours
-                if file_size_time == 1:
-                    time_step = 24*3600 #daily
-                    description += " Daily Runoff"
-                elif file_size_time == 8:
-                    time_step = 3*3600 #3 hourly
-                    description += " 3 Hourly Runoff"
-                else:
-                    era_example_file.close()
-                    raise Exception("Unsupported ECMWF time step.")
-                 
-                RAPIDinflowECMWF_tool = CreateInflowFileFromERAInterimRunoff()                 
-            elif institutuion == "NASA GSFC":
-                print "Runoff file identified as LIS GRID"
-                #this is the LIS model
-                weight_file_name = r'weight_lis\.csv'
-                grid_type = 'lis'
-                description = "NASA GFC LIS Hourly Runoff"
-                model_name = "nasa"
-                #time units are in minutes
-                if file_size_time == 1:
-                    time_step = 1*3600 #hourly
-                else:
-                    era_example_file.close()
-                    raise Exception("Unsupported LIS time step.")
-
-                RAPIDinflowECMWF_tool = CreateInflowFileFromLDASRunoff(latitude_dim,
-                                                                       longitude_dim,
-                                                                       latitude_var,
-                                                                       longitude_var,
-                                                                       surface_runoff_var,
-                                                                       subsurface_runoff_var,
-                                                                       time_step)
-               
+            elif lat_dim_size == 512 and lon_dim_size == 1024:
+                print "Runoff file identified as ERA Interim High Res (T511) GRID"
+                #B) ERA Interim High Res (T511)
+                # dimensions:
+                #  lon = 1024 ;
+                #  lat = 512 ;
+                description = "ERA Interim (T511 Grid)"
+                weight_file_name = r'weight_era_t511\.csv'
+                model_name = "erai"
+                grid_type = 't511'
+            elif lat_dim_size == 161 and lon_dim_size == 320:
+                print "Runoff file identified as ERA 20CM (T159) GRID"
+                #C) ERA 20CM (T159) - 3hr - 10 ensembles
+                #Downloaded as 1.125 degree grid
+                # dimensions:
+                #  longitude = 320 ;
+                #  latitude = 161 ;    
+                description = "ERA 20CM (T159 Grid)"
+                weight_file_name = r'weight_era_t159\.csv'
+                model_name = "era_20cm"
+                grid_type = 't159'
             else:
-                raise Exception("Unsupported runoff grid.")
+                era_example_file.close()
+                raise Exception("Unsupported grid size.")
+
+            #time units are in hours
+            if file_size_time == 1:
+                time_step = 24*3600 #daily
+                description += " Daily Runoff"
+            elif file_size_time == 8:
+                time_step = 3*3600 #3 hourly
+                description += " 3 Hourly Runoff"
+            else:
+                era_example_file.close()
+                raise Exception("Unsupported ECMWF time step.")
+             
+            RAPIDinflowECMWF_tool = CreateInflowFileFromERAInterimRunoff()                 
+        elif institution == "NASA GSFC":
+            print "Runoff file identified as LIS GRID"
+            #this is the LIS model
+            weight_file_name = r'weight_lis\.csv'
+            grid_type = 'lis'
+            description = "NASA GFC LIS Hourly Runoff"
+            model_name = "nasa"
+            #time units are in minutes
+            if file_size_time == 1:
+                time_step = 1*3600 #hourly
+            else:
+                era_example_file.close()
+                raise Exception("Unsupported LIS time step.")
+
+            RAPIDinflowECMWF_tool = CreateInflowFileFromLDASRunoff(latitude_dim,
+                                                                   longitude_dim,
+                                                                   latitude_var,
+                                                                   longitude_var,
+                                                                   surface_runoff_var,
+                                                                   subsurface_runoff_var,
+                                                                   time_step)
+               
         elif surface_runoff_var.startswith("SSRUN") \
             and subsurface_runoff_var.startswith("BGRUN"):
 
@@ -371,6 +376,10 @@ def run_era_interim_rapid_process(rapid_executable_location,
                                                                    surface_runoff_var,
                                                                    subsurface_runoff_var,
                                                                    time_step)
+        else:
+            era_example_file.close()
+            raise Exception("Unsupported runoff grid.")
+        
         era_example_file.close()
     
         out_file_ending = "{0}_{1}_{2}hr_{3}".format(model_name, grid_type, time_step/3600, out_file_ending)
