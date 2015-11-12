@@ -1,17 +1,15 @@
 #!/usr/bin/env python
-from condorpy import Job as CJob
-from condorpy import Templates as tmplt
 from glob import glob
 import os
 
 #local imports
-from imports.helper_functions import (case_insensitive_file_search,
-                                      get_valid_watershed_list, 
+from imports.helper_functions import (case_insensitive_file_search, 
+                                      get_valid_watershed_list,
                                       get_watershed_subbasin_from_folder)
 
 #package imports
-from AutoRoutePy.autoroute_prepare import AutoRoutePrepare 
-from AutoRoutePy.post_process import merge_shapefiles, rename_shapefiles
+from AutoRoutePy.run_autoroute_multicore import run_autoroute_multicore 
+from AutoRoutePy.post_process import rename_shapefiles
 from spt_dataset_manager.dataset_manager import GeoServerDatasetManager
 
 #----------------------------------------------------------------------------------------
@@ -21,6 +19,7 @@ def run_autorapid_process(autoroute_executable_location, #location of AutoRoute 
                           autoroute_io_files_location, #path to AutoRoute input/outpuf directory
                           rapid_io_files_location, #path to AutoRoute input/outpuf directory
                           condor_log_directory,
+                          return_period_list=['return_period_20', 'return_period_10', 'return_period_2'],
                           geoserver_url='',
                           geoserver_username='',
                           geoserver_password='',
@@ -29,14 +28,19 @@ def run_autorapid_process(autoroute_executable_location, #location of AutoRoute 
     """
     This it the main AutoRoute-RAPID process
     """
-    local_scripts_location = os.path.dirname(os.path.realpath(__file__))
+    valid_return_period_list = ['return_period_20', 'return_period_10', 'return_period_2']
+
+    #validate return period list
+    for return_period in return_period_list:
+        if return_period not in valid_return_period_list:
+            raise Exception("%s not a valid return period index ...")
 
     #loop through input watershed folders
     autoroute_input_folder = os.path.join(autoroute_io_files_location, "input")
     autoroute_output_folder = os.path.join(autoroute_io_files_location, "output")
     autoroute_input_directories = get_valid_watershed_list(autoroute_input_folder)
 
-    for return_period in ['return_period_20', 'return_period_10', 'return_period_2']:
+    for return_period in return_period_list:
         #initialize HTCondor Directory
         condor_init_dir = os.path.join(condor_log_directory, return_period)
         try:
@@ -70,80 +74,22 @@ def run_autorapid_process(autoroute_executable_location, #location of AutoRoute 
                 os.makedirs(master_watershed_autoroute_output_directory)
             except OSError:
                 pass
-            #keep list of jobs
-            autoroute_watershed_jobs[autoroute_input_directory] = {
-                                                                    'jobs': [], 
-                                                                    'output_folder': master_watershed_autoroute_output_directory
-                                                                   }
             #loop through sub-directories
-            autoroute_watershed_directory_path = os.path.join(autoroute_input_folder, autoroute_input_directory)
-            for directory in os.listdir(autoroute_watershed_directory_path):
-                print "Running AutoRoute for watershed:", autoroute_input_directory, "sub directory:", directory
-                master_watershed_autoroute_input_directory = os.path.join(autoroute_watershed_directory_path, directory)
-                if os.path.isdir(master_watershed_autoroute_input_directory):
-                    streamflow_raster_path = os.path.join(master_watershed_autoroute_input_directory, 'streamflow_raster.tif')
-                    #remove old streamflow raster if exists
-                    try:
-                        os.remove(streamflow_raster_path)
-                    except OSError:
-                        pass
-                    #create input streamflow raster for AutoRoute
-                    try:
-                        elevation_raster = case_insensitive_file_search(master_watershed_autoroute_input_directory, r'elevation\.*.(?!prj)')
-                    except Exception:
-                        try:
-                            elevation_raster = case_insensitive_file_search(os.path.join(master_watershed_autoroute_input_directory, 'elevation'), r'hdr.adf')
-                        except Exception:
-                            print "Elevation raster not found. Skipping ..."
-                            continue
-                            pass
-                        pass
-                    
-                    try:
-                        streamid_rasterindex_file=case_insensitive_file_search(master_watershed_autoroute_input_directory,
-                                                                               r'streamid_rasterindex.csv')
-                    except Exception:
-                        print "streamid_rasterindex file not found. Skipping ..."
-                        continue
-                        pass
-                    
-                    arp = AutoRoutePrepare(elevation_raster)
-                    arp.generate_raster_from_return_period_file(streamid_rasterindex_file=streamid_rasterindex_file, 
-                                                                out_streamflow_raster=streamflow_raster_path,
-                                                                return_period_file=return_period_file,
-                                                                return_period=return_period)
-                    
-                    #setup shapfile names
-                    output_shapefile_base_name = '%s-%s_%s' % (watershed, subbasin, directory)
-                    output_shapefile_shp_name = '%s.shp' % output_shapefile_base_name
-                    master_output_shapefile_shp_name = os.path.join(master_watershed_autoroute_output_directory, output_shapefile_shp_name)
-                    output_shapefile_shx_name = '%s.shx' % output_shapefile_base_name
-                    master_output_shapefile_shx_name = os.path.join(master_watershed_autoroute_output_directory, output_shapefile_shx_name)
-                    output_shapefile_prj_name = '%s.prj' % output_shapefile_base_name
-                    master_output_shapefile_prj_name = os.path.join(master_watershed_autoroute_output_directory, output_shapefile_prj_name)
-                    output_shapefile_dbf_name = '%s.dbf' % output_shapefile_base_name
-                    master_output_shapefile_dbf_name = os.path.join(master_watershed_autoroute_output_directory, output_shapefile_dbf_name)
-    
-                    
-                    #create job to run autoroute for each raster in watershed
-                    job = CJob('job_autoroute_%s_%s' % (autoroute_input_directory, directory), tmplt.vanilla_transfer_files)
-                    job.set('executable', os.path.join(local_scripts_location,'htcondor_autorapid.py'))
-                    job.set('transfer_input_files', "%s, %s" % (master_watershed_autoroute_input_directory, 
-                                                                local_scripts_location))
-                    job.set('initialdir', condor_init_dir)
-                    job.set('arguments', '%s %s %s' % (directory,
-                                                       autoroute_executable_location,
-                                                       output_shapefile_shp_name))
-                    job.set('transfer_output_remaps',"\"%s = %s; %s = %s; %s = %s; %s = %s\"" % (output_shapefile_shp_name, 
-                                                                                                 master_output_shapefile_shp_name,
-                                                                                                 output_shapefile_shx_name,
-                                                                                                 master_output_shapefile_shx_name,
-                                                                                                 output_shapefile_prj_name,
-                                                                                                 master_output_shapefile_prj_name,
-                                                                                                 output_shapefile_dbf_name,
-                                                                                                 master_output_shapefile_dbf_name))
-                    job.submit()
-                    autoroute_watershed_jobs[autoroute_input_directory]['jobs'].append(job)
+            autoroute_watershed_directory_path = os.path.join(autoroute_input_folder, autoroute_input_directory)        
+            autoroute_watershed_jobs[autoroute_input_directory] = run_autoroute_multicore(autoroute_executable_location, #location of AutoRoute executable
+                                                                                          autoroute_input_directory=autoroute_watershed_directory_path, #path to AutoRoute input directory
+                                                                                          autoroute_output_directory=master_watershed_autoroute_output_directory, #path to AutoRoute output directory
+                                                                                          return_period=return_period, # return period name in return period file
+                                                                                          return_period_file=return_period_file, # return period file generated from RAPID historical run
+                                                                                          mode="multiprocess", #multiprocess or htcondor
+                                                                                          condor_log_directory=condor_init_dir,
+                                                                                          #delete_flood_raster=True, #delete flood raster generated
+                                                                                          #generate_floodmap_shapefile=True, #generate a flood map shapefile
+                                                                                          #wait_for_all_processes_to_finish=True
+                                                                                          )
+        """
+        #TODO                    
+        autoroute_watershed_jobs[autoroute_input_directory]['jobs'].append(job)
             geoserver_manager = None
             if geoserver_url and geoserver_username and geoserver_password and app_instance_id:
                 try:
@@ -199,10 +145,12 @@ def run_autorapid_process(autoroute_executable_location, #location of AutoRoute 
                     except OSError:
                         pass
                     #TODO: Upload to CKAN for historical floodmaps?
+        """
 
 if __name__ == "__main__":
-    run_autorapid_process(autoroute_executable_location='/Users/rdchlads/autorapid/AutoRoute/source_code/autoroute',
-                          autoroute_io_files_location='/Users/rdchlads/autorapid/autoroute-io',
-                          rapid_io_files_location='/Users/rdchlads/autorapid/rapid-io',
-                          condor_log_directory='/Users/rdchlads/autorapid /condor/',
+    run_autorapid_process(autoroute_executable_location='/home/alan/work/scripts/AutoRouteGDAL/source_code/autoroute',
+                          autoroute_io_files_location='/home/alan/work/autoroute-io',
+                          rapid_io_files_location='/home/alan/work/rapid-io',
+                          condor_log_directory='/home/alan/work/condor',
+                          return_period_list=['return_period_20']
                           )
