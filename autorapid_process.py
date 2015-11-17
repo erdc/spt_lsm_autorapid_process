@@ -1,18 +1,23 @@
 #!/usr/bin/env python
-from condorpy import Job as CJob
-from condorpy import Templates as tmplt
 from glob import glob
 import os
+GEOSERVER_ENABLED = False
+try:
+    from geoserver.catalog import FailedRequestError as geo_cat_FailedRequestError
+    from spt_dataset_manager.dataset_manager import GeoServerDatasetManager
+    GEOSERVER_ENABLED = True
+except ImportError:
+    print "Geoserver functionality will not work. Need to pip install tethys_dataset_services to work."
+    pass
 
 #local imports
-from imports.helper_functions import (case_insensitive_file_search,
-                                      get_valid_watershed_list, 
+from imports.helper_functions import (case_insensitive_file_search, 
+                                      get_valid_watershed_list,
                                       get_watershed_subbasin_from_folder)
 
 #package imports
-from AutoRoutePy.autoroute_prepare import AutoRoutePrepare 
-from AutoRoutePy.post_process import merge_shapefiles, rename_shapefiles
-from spt_dataset_manager.dataset_manager import GeoServerDatasetManager
+from AutoRoutePy.run_autoroute_multicore import run_autoroute_multicore 
+from AutoRoutePy.post_process import get_shapefile_layergroup_bounds, rename_shapefiles
 
 #----------------------------------------------------------------------------------------
 # MAIN PROCESS
@@ -21,6 +26,7 @@ def run_autorapid_process(autoroute_executable_location, #location of AutoRoute 
                           autoroute_io_files_location, #path to AutoRoute input/outpuf directory
                           rapid_io_files_location, #path to AutoRoute input/outpuf directory
                           condor_log_directory,
+                          return_period_list=['return_period_20', 'return_period_10', 'return_period_2'],
                           geoserver_url='',
                           geoserver_username='',
                           geoserver_password='',
@@ -29,14 +35,19 @@ def run_autorapid_process(autoroute_executable_location, #location of AutoRoute 
     """
     This it the main AutoRoute-RAPID process
     """
-    local_scripts_location = os.path.dirname(os.path.realpath(__file__))
+    valid_return_period_list = ['return_period_20', 'return_period_10', 'return_period_2']
+
+    #validate return period list
+    for return_period in return_period_list:
+        if return_period not in valid_return_period_list:
+            raise Exception("%s not a valid return period index ...")
 
     #loop through input watershed folders
     autoroute_input_folder = os.path.join(autoroute_io_files_location, "input")
     autoroute_output_folder = os.path.join(autoroute_io_files_location, "output")
     autoroute_input_directories = get_valid_watershed_list(autoroute_input_folder)
 
-    for return_period in ['return_period_20', 'return_period_10', 'return_period_2']:
+    for return_period in return_period_list:
         #initialize HTCondor Directory
         condor_init_dir = os.path.join(condor_log_directory, return_period)
         try:
@@ -70,139 +81,129 @@ def run_autorapid_process(autoroute_executable_location, #location of AutoRoute 
                 os.makedirs(master_watershed_autoroute_output_directory)
             except OSError:
                 pass
-            #keep list of jobs
-            autoroute_watershed_jobs[autoroute_input_directory] = {
-                                                                    'jobs': [], 
-                                                                    'output_folder': master_watershed_autoroute_output_directory
-                                                                   }
             #loop through sub-directories
-            autoroute_watershed_directory_path = os.path.join(autoroute_input_folder, autoroute_input_directory)
-            for directory in os.listdir(autoroute_watershed_directory_path):
-                print "Running AutoRoute for watershed:", autoroute_input_directory, "sub directory:", directory
-                master_watershed_autoroute_input_directory = os.path.join(autoroute_watershed_directory_path, directory)
-                if os.path.isdir(master_watershed_autoroute_input_directory):
-                    streamflow_raster_path = os.path.join(master_watershed_autoroute_input_directory, 'streamflow_raster.tif')
-                    #remove old streamflow raster if exists
-                    try:
-                        os.remove(streamflow_raster_path)
-                    except OSError:
-                        pass
-                    #create input streamflow raster for AutoRoute
-                    try:
-                        elevation_raster = case_insensitive_file_search(master_watershed_autoroute_input_directory, r'elevation\.*.(?!prj)')
-                    except Exception:
-                        try:
-                            elevation_raster = case_insensitive_file_search(os.path.join(master_watershed_autoroute_input_directory, 'elevation'), r'hdr.adf')
-                        except Exception:
-                            print "Elevation raster not found. Skipping ..."
-                            continue
-                            pass
-                        pass
-                    
-                    try:
-                        streamid_rasterindex_file=case_insensitive_file_search(master_watershed_autoroute_input_directory,
-                                                                               r'streamid_rasterindex.csv')
-                    except Exception:
-                        print "streamid_rasterindex file not found. Skipping ..."
-                        continue
-                        pass
-                    
-                    arp = AutoRoutePrepare(elevation_raster)
-                    arp.generate_raster_from_return_period_file(streamid_rasterindex_file=streamid_rasterindex_file, 
-                                                                out_streamflow_raster=streamflow_raster_path,
-                                                                return_period_file=return_period_file,
-                                                                return_period=return_period)
-                    
-                    #setup shapfile names
-                    output_shapefile_base_name = '%s-%s_%s' % (watershed, subbasin, directory)
-                    output_shapefile_shp_name = '%s.shp' % output_shapefile_base_name
-                    master_output_shapefile_shp_name = os.path.join(master_watershed_autoroute_output_directory, output_shapefile_shp_name)
-                    output_shapefile_shx_name = '%s.shx' % output_shapefile_base_name
-                    master_output_shapefile_shx_name = os.path.join(master_watershed_autoroute_output_directory, output_shapefile_shx_name)
-                    output_shapefile_prj_name = '%s.prj' % output_shapefile_base_name
-                    master_output_shapefile_prj_name = os.path.join(master_watershed_autoroute_output_directory, output_shapefile_prj_name)
-                    output_shapefile_dbf_name = '%s.dbf' % output_shapefile_base_name
-                    master_output_shapefile_dbf_name = os.path.join(master_watershed_autoroute_output_directory, output_shapefile_dbf_name)
-    
-                    
-                    #create job to run autoroute for each raster in watershed
-                    job = CJob('job_autoroute_%s_%s' % (autoroute_input_directory, directory), tmplt.vanilla_transfer_files)
-                    job.set('executable', os.path.join(local_scripts_location,'htcondor_autorapid.py'))
-                    job.set('transfer_input_files', "%s, %s" % (master_watershed_autoroute_input_directory, 
-                                                                local_scripts_location))
-                    job.set('initialdir', condor_init_dir)
-                    job.set('arguments', '%s %s %s' % (directory,
-                                                       autoroute_executable_location,
-                                                       output_shapefile_shp_name))
-                    job.set('transfer_output_remaps',"\"%s = %s; %s = %s; %s = %s; %s = %s\"" % (output_shapefile_shp_name, 
-                                                                                                 master_output_shapefile_shp_name,
-                                                                                                 output_shapefile_shx_name,
-                                                                                                 master_output_shapefile_shx_name,
-                                                                                                 output_shapefile_prj_name,
-                                                                                                 master_output_shapefile_prj_name,
-                                                                                                 output_shapefile_dbf_name,
-                                                                                                 master_output_shapefile_dbf_name))
-                    job.submit()
-                    autoroute_watershed_jobs[autoroute_input_directory]['jobs'].append(job)
+            autoroute_watershed_directory_path = os.path.join(autoroute_input_folder, autoroute_input_directory)        
+            autoroute_watershed_jobs[autoroute_input_directory] = run_autoroute_multicore(autoroute_executable_location, #location of AutoRoute executable
+                                                                                          autoroute_input_directory=autoroute_watershed_directory_path, #path to AutoRoute input directory
+                                                                                          autoroute_output_directory=master_watershed_autoroute_output_directory, #path to AutoRoute output directory
+                                                                                          return_period=return_period, # return period name in return period file
+                                                                                          return_period_file=return_period_file, # return period file generated from RAPID historical run
+                                                                                          mode="multiprocess", #multiprocess or htcondor
+                                                                                          condor_log_directory=condor_init_dir,
+                                                                                          #delete_flood_raster=True, #delete flood raster generated
+                                                                                          #generate_floodmap_shapefile=True, #generate a flood map shapefile
+                                                                                          wait_for_all_processes_to_finish=False
+                                                                                          )
+    geoserver_manager = None
+    if GEOSERVER_ENABLED and geoserver_url and geoserver_username \
+        and geoserver_password and app_instance_id:
+        try:
+            geoserver_manager = GeoServerDatasetManager(geoserver_url, 
+                                                        geoserver_username, 
+                                                        geoserver_password, 
+                                                        app_instance_id)
+        except Exception as ex:
+            print ex
+            print "Skipping geoserver upload ..."
             geoserver_manager = None
-            if geoserver_url and geoserver_username and geoserver_password and app_instance_id:
-                try:
-                    geoserver_manager = GeoServerDatasetManager(geoserver_url, 
-                                                                geoserver_username, 
-                                                                geoserver_password, 
-                                                                app_instance_id)
-                except Exception as ex:
-                    print ex
-                    print "Skipping geoserver upload ..."
-                    geoserver_manager = None
-                    pass 
-            #wait for jobs to finish by watershed
-            for autoroute_input_directory, autoroute_watershed_job in autoroute_watershed_jobs.iteritems():
-                #time stamped layer name
-                geoserver_resource_name = "%s-floodmap-%s" % (autoroute_input_directory, return_period)
-                #geoserver_resource_name = "%s-floodmap" % (autoroute_input_directory)
-                upload_shapefile = os.path.join(master_watershed_autoroute_output_directory, "%s%s" % (geoserver_resource_name, ".shp"))
-                for autoroute_job in autoroute_watershed_job['jobs']:
-                    autoroute_job.wait()
-                if len(autoroute_watershed_job['jobs'])> 1:
-                    # merge files
-                    merge_shapefiles(autoroute_watershed_job['output_folder'], 
-                                     upload_shapefile, 
-                                     reproject=True,
-                                     remove_old=True)
-                elif len(autoroute_watershed_job['jobs'])== 1:
-                    #rename files
-                    rename_shapefiles(master_watershed_autoroute_output_directory, 
-                                      os.path.splitext(upload_shapefile)[0], 
-                                      autoroute_input_directory)
-    
-                #upload to GeoServer
-                if geoserver_manager:
+            pass
+        
+    #wait for jobs to finish by watershed
+    for autoroute_watershed_directory, autoroute_watershed_job in autoroute_watershed_jobs.iteritems():
+        master_watershed_autoroute_output_directory = os.path.join(autoroute_output_folder,
+                                                                   autoroute_watershed_directory, 
+                                                                   return_period)
+        #time stamped layer name
+        geoserver_layer_group_name = "%s-floodmap-%s" % (autoroute_watershed_directory, 
+                                                         return_period)
+        geoserver_resource_list = []
+        upload_shapefile_list = []
+        for job_index, job_output in enumerate(autoroute_watershed_job['multiprocess_worker_list']):
+
+            #time stamped layer name
+            geoserver_resource_name = "%s-%s" % (geoserver_layer_group_name,
+                                                 job_index)
+            #upload each shapefile
+            upload_shapefile = os.path.join(master_watershed_autoroute_output_directory, 
+                                            "%s%s" % (geoserver_resource_name, ".shp"))
+                                            
+            #rename files
+            rename_shapefiles(master_watershed_autoroute_output_directory, 
+                              os.path.splitext(upload_shapefile)[0], 
+                              os.path.splitext(os.path.basename(job_output[1]))[0])
+
+            #upload to GeoServer
+            if geoserver_manager:
+                if os.path.exists(upload_shapefile):
+                    upload_shapefile_list.append(upload_shapefile)
                     print "Uploading", upload_shapefile, "to GeoServer as", geoserver_resource_name
                     shapefile_basename = os.path.splitext(upload_shapefile)[0]
                     #remove past layer if exists
-                    geoserver_manager.purge_remove_geoserver_layer(geoserver_manager.get_layer_name(geoserver_resource_name))
+                    #geoserver_manager.purge_remove_geoserver_layer(geoserver_manager.get_layer_name(geoserver_resource_name))
+                    
                     #upload updated layer
                     shapefile_list = glob("%s*" % shapefile_basename)
-                    geoserver_manager.upload_shapefile(geoserver_resource_name, 
-                                                       shapefile_list)
-                                                       
-                    #remove local shapefile when done
-                    for shapefile in shapefile_list:
-                        try:
-                            os.remove(shapefile)
-                        except OSError:
-                            pass
-                    #remove local directories when done
+                    #Note: Added try, except statement because the request search fails when the app
+                    #deletes the layer after request is made (happens hourly), so the process may throw
+                    #an exception even though it was successful.
+                    """
+                    ...
+                      File "/home/alan/work/scripts/spt_ecmwf_autorapid_process/spt_dataset_manager/dataset_manager.py", line 798, in upload_shapefile
+                        overwrite=True)
+                      File "/usr/lib/tethys/local/lib/python2.7/site-packages/tethys_dataset_services/engines/geoserver_engine.py", line 1288, in create_shapefile_resource
+                        new_resource = catalog.get_resource(name=name, workspace=workspace)
+                      File "/usr/lib/tethys/local/lib/python2.7/site-packages/geoserver/catalog.py", line 616, in get_resource
+                        resource = self.get_resource(name, store)
+                      File "/usr/lib/tethys/local/lib/python2.7/site-packages/geoserver/catalog.py", line 606, in get_resource
+                        candidates = [s for s in self.get_resources(store) if s.name == name]
+                      File "/usr/lib/tethys/local/lib/python2.7/site-packages/geoserver/catalog.py", line 645, in get_resources
+                        return store.get_resources()
+                      File "/usr/lib/tethys/local/lib/python2.7/site-packages/geoserver/store.py", line 58, in get_resources
+                        xml = self.catalog.get_xml(res_url)
+                      File "/usr/lib/tethys/local/lib/python2.7/site-packages/geoserver/catalog.py", line 188, in get_xml
+                        raise FailedRequestError("Tried to make a GET request to %s but got a %d status code: \n%s" % (rest_url, response.status, content))
+                    geoserver.catalog.FailedRequestError: ...
+                    """
                     try:
-                        os.remove(os.path.join(master_watershed_autoroute_output_directory))
+                        geoserver_manager.upload_shapefile(geoserver_resource_name, 
+                                                           shapefile_list)
+                    except geo_cat_FailedRequestError as ex:
+                        print ex
+                        print "Most likely OK, but always wise to check ..."
+                        pass
+                                                       
+                    geoserver_resource_list.append(geoserver_manager.get_layer_name(geoserver_resource_name))
+                    #TODO: Upload to CKAN for history of predicted floodmaps?
+                else:
+                    print upload_shapefile, "not found. Skipping upload to GeoServer ..."
+        
+        if geoserver_manager and geoserver_resource_list:
+            print "Creating Layer Group:", geoserver_layer_group_name
+            style_list = ['green' for i in range(len(geoserver_resource_list))]
+            bounds = get_shapefile_layergroup_bounds(upload_shapefile_list)
+            geoserver_manager.dataset_engine.create_layer_group(layer_group_id=geoserver_manager.get_layer_name(geoserver_layer_group_name), 
+                                                                layers=tuple(geoserver_resource_list), 
+                                                                styles=tuple(style_list),
+                                                                bounds=tuple(bounds))
+            #remove local shapefile when done
+            for upload_shapefile in upload_shapefile_list:
+                shapefile_parts = glob("%s*" % os.path.splitext(upload_shapefile)[0])
+                for shapefile_part in shapefile_parts:
+                    try:
+                        os.remove(shapefile_part)
                     except OSError:
                         pass
-                    #TODO: Upload to CKAN for historical floodmaps?
+                    
+            #remove local directories when done
+            try:
+                os.rmdir(master_watershed_autoroute_output_directory)
+            except OSError:
+                pass
 
 if __name__ == "__main__":
-    run_autorapid_process(autoroute_executable_location='/Users/rdchlads/autorapid/AutoRoute/source_code/autoroute',
-                          autoroute_io_files_location='/Users/rdchlads/autorapid/autoroute-io',
-                          rapid_io_files_location='/Users/rdchlads/autorapid/rapid-io',
-                          condor_log_directory='/Users/rdchlads/autorapid /condor/',
+    run_autorapid_process(autoroute_executable_location='/home/alan/work/scripts/AutoRouteGDAL/source_code/autoroute',
+                          autoroute_io_files_location='/home/alan/work/autoroute-io',
+                          rapid_io_files_location='/home/alan/work/rapid-io',
+                          condor_log_directory='/home/alan/work/condor',
+                          return_period_list=['return_period_20']
                           )

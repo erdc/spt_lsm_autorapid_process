@@ -4,8 +4,8 @@ Code to use to prepare input data for RAPID from ECMWF ERA Interim Data or NASA 
 ##Step 1: Install RAPID and RAPIDpy
 See: https://github.com/erdc-cm/RAPIDpy
 
-##Step 2: Install AutoRoute
-See: https://github.com/erdc-cm/AutoRoute/tree/gdal
+##Step 2: Install AutoRoute and AutoRoute-py
+See: https://github.com/erdc-cm/AutoRoute-py
 
 ##Step 3: Install Python Libraries
 ```
