@@ -43,7 +43,14 @@ def case_insensitive_file_search(directory, pattern):
     except IndexError:
         print pattern, "not found"
         raise
-        
+
+def partition(lst, n):
+    """
+    Divide list into n equal parts
+    """
+    q, r = divmod(len(lst), n)
+    indices = [q*i + min(i,r) for i in xrange(n+1)]
+    return [lst[indices[i]:indices[i+1]] for i in xrange(n)], [range(indices[i],indices[i+1]) for i in xrange(n)]
         
 #------------------------------------------------------------------------------
 #MAIN PROCESSES
@@ -54,8 +61,8 @@ def generate_inflows_from_runoff(args):
     """
     watershed = args[0]
     subbasin = args[1]
-    era_interim_file = args[2]
-    erai_file_index = args[3]
+    runoff_file_list = args[2]
+    file_index_list = args[3]
     erai_weight_table_file = args[4]
     grid_type = args[5]
     rapid_inflow_file = args[6]
@@ -64,12 +71,18 @@ def generate_inflows_from_runoff(args):
     time_start_all = datetime.datetime.utcnow()
 
     #prepare ECMWF file for RAPID
-    print "Runoff downscaling for:", watershed, subbasin, \
-          erai_file_index, rapid_inflow_file
-
+    print "Runoff downscaling for:", watershed, subbasin
+    print "Index:", file_index_list[0], "to", file_index_list[-1]
+    print "File(s):", runoff_file_list[0], "to", runoff_file_list[-1]
+          
+    if not isinstance(runoff_file_list, list): 
+        runoff_file_list = [runoff_file_list]
+    else:
+        runoff_file_list = runoff_file_list
+       
     print "Converting inflow"
-    RAPIDinflowECMWF_tool.execute(nc_file=era_interim_file,
-                                  index=erai_file_index,
+    RAPIDinflowECMWF_tool.execute(nc_file_list=runoff_file_list,
+                                  index_list=file_index_list,
                                   in_weight_table=erai_weight_table_file,
                                   out_nc=rapid_inflow_file,
                                   grid_type=grid_type,
@@ -101,7 +114,8 @@ def run_era_interim_rapid_process(rapid_executable_location,
     #clean up old log files
     clean_logs(main_log_directory)
 
-
+    NUM_CPUS = multiprocessing.cpu_count()
+    
     #get list of correclty formatted rapid input directories in rapid directory
     rapid_input_directories = []
     for directory in os.listdir(os.path.join(rapid_io_files_location,'input')):
@@ -123,7 +137,7 @@ def run_era_interim_rapid_process(rapid_executable_location,
     for ensemble in ensemble_list:
         ensemble_file_ending = ".nc"
         if ensemble != None:
-            ensemble_file_ending = "_{}.nc".format(ensemble)
+            ensemble_file_ending = "_{0}.nc".format(ensemble)
         #get list of files
         era_interim_file_list = []
         for subdir, dirs, files in os.walk(era_interim_folder):
@@ -132,6 +146,7 @@ def run_era_interim_rapid_process(rapid_executable_location,
                     era_interim_file_list.append(os.path.join(subdir, erai_file))
         
         era_interim_file_list_subset = []
+        
         for erai_file in sorted(era_interim_file_list):
             match = re.search(r'\d{8}', erai_file)
             file_date = datetime.datetime.strptime(match.group(0), "%Y%m%d")
@@ -240,7 +255,7 @@ def run_era_interim_rapid_process(rapid_executable_location,
         time_step = 0
         description = ""
         RAPIDinflowECMWF_tool = None
-        
+        total_num_time_steps = 0
         institution = ""
         try:
             institution = era_example_file.getncattr("institution")
@@ -297,7 +312,8 @@ def run_era_interim_rapid_process(rapid_executable_location,
             else:
                 era_example_file.close()
                 raise Exception("Unsupported ECMWF time step.")
-             
+
+            total_num_time_steps=file_size_time*len(era_interim_file_list)
             RAPIDinflowECMWF_tool = CreateInflowFileFromERAInterimRunoff()                 
         elif institution == "NASA GSFC":
             print "Runoff file identified as LIS GRID"
@@ -312,6 +328,8 @@ def run_era_interim_rapid_process(rapid_executable_location,
             else:
                 era_example_file.close()
                 raise Exception("Unsupported LIS time step.")
+
+            total_num_time_steps=file_size_time*len(era_interim_file_list)
 
             RAPIDinflowECMWF_tool = CreateInflowFileFromLDASRunoff(latitude_dim,
                                                                    longitude_dim,
@@ -344,6 +362,8 @@ def run_era_interim_rapid_process(rapid_executable_location,
                 else:
                     era_example_file.close()
                     raise Exception("Unsupported GLDAS time step.")
+                
+                total_num_time_steps=file_size_time*len(era_interim_file_list)
 
             elif lat_dim_size <= 224 and lon_dim_size <= 464:
                 print "Runoff file identified as NLDAS GRID"
@@ -361,10 +381,17 @@ def run_era_interim_rapid_process(rapid_executable_location,
                 grid_type = 'nldas'
 
                 if file_size_time == 1:
-                    time_step = 1*3600 #hourly
+                    #time_step = 1*3600 #hourly
+                    time_step = 3*3600 #3 hourly
                 else:
                     era_example_file.close()
                     raise Exception("Unsupported NLDAS time step.")
+                
+                if file_size_time*len(era_interim_file_list) % 3 != 0:
+                    era_example_file.close()
+                    raise Exception("Number of files needs to be divisible by 3")
+                    
+                total_num_time_steps=file_size_time*len(era_interim_file_list)/3
             else:
                 era_example_file.close()
                 raise Exception("Unsupported runoff grid.")
@@ -389,7 +416,7 @@ def run_era_interim_rapid_process(rapid_executable_location,
                               use_all_processors=True,                          
                               ZS_TauR=time_step, #duration of routing procedure (time step of runoff data)
                               ZS_dtR=15*60, #internal routing time step
-                              ZS_TauM=len(era_interim_file_list)*time_step*file_size_time, #total simulation time 
+                              ZS_TauM=total_num_time_steps*time_step, #total simulation time 
                               ZS_dtM=86400 #RAPID recommended internal time step (1 day)
                              )
     
@@ -408,44 +435,52 @@ def run_era_interim_rapid_process(rapid_executable_location,
     
             #create inflow to dump data into
             master_rapid_runoff_file = os.path.join(master_watershed_output_directory, 
-                                                    'm3_riv_bas_{}'.format(out_file_ending))
+                                                    'm3_riv_bas_{0}'.format(out_file_ending))
             
             erai_weight_table_file = case_insensitive_file_search(master_watershed_input_directory,
                                                                   weight_file_name)
+
             RAPIDinflowECMWF_tool.generateOutputInflowFile(out_nc=master_rapid_runoff_file,
                                                            in_weight_table=erai_weight_table_file,
-                                                           tot_size_time=file_size_time*len(era_interim_file_list),
-                                                          )
+                                                           tot_size_time=total_num_time_steps,
+                                                           )
     
             job_combinations = []
-            for erai_file_index, erai_file in enumerate(era_interim_file_list):
+            past_inflow_index_list_length = 0
+            if grid_type == 'nldas':
+                print "Grouping nldas in threes"
+                #group files in three
+                era_interim_file_list = [era_interim_file_list[nldas_index:nldas_index+3] for nldas_index in range(0, len(era_interim_file_list), 3)]
+
+            partition_list, partition_index_list = partition(era_interim_file_list, NUM_CPUS)
+            for loop_index, cpu_grouped_file_list in enumerate(partition_list):
                 job_combinations.append((watershed.lower(), 
                                          subbasin.lower(),
-                                         erai_file, 
-                                         erai_file_index,
+                                         cpu_grouped_file_list, 
+                                         partition_index_list[loop_index],
                                          erai_weight_table_file,
                                          grid_type,
                                          master_rapid_runoff_file,
                                          RAPIDinflowECMWF_tool))
                 #generate_inflows_from_runoff((watershed.lower(), 
                 #                              subbasin.lower(),
-                #                              erai_file, 
-                #                              erai_file_index,
+                #                              cpu_grouped_file_list, 
+                #                              inflow_index_list,
                 #                              erai_weight_table_file,
                 #                              grid_type,
                 #                              master_rapid_runoff_file,
                 #                              RAPIDinflowECMWF_tool))
             pool = multiprocessing.Pool()
-            #chunksize=1 makes it so there is only one task per process
+            #chunksize=1 makes it so there is only one task per cpu
             pool.imap(generate_inflows_from_runoff, 
                       job_combinations,
                       chunksize=1)
             pool.close()
             pool.join()
+            
             #run RAPID for the watershed
             era_rapid_output_file = os.path.join(master_watershed_output_directory,
-                                                 'Qout_{}'.format(out_file_ending))
-                                                 
+                                                 'Qout_{0}'.format(out_file_ending))
             rapid_manager.update_parameters(rapid_connect_file=case_insensitive_file_search(master_watershed_input_directory,
                                                                                          r'rapid_connect\.csv'),
                                             Vlat_file=master_rapid_runoff_file,
@@ -464,15 +499,14 @@ def run_era_interim_rapid_process(rapid_executable_location,
             rapid_manager.run()
             rapid_manager.make_output_CF_compliant(simulation_start_datetime=actual_simulation_start_datetime,
                                                    comid_lat_lon_z_file=comid_lat_lon_z_file,
-                                                   project_name="{} Based Historical flows by US Army ERDC".format(description))
+                                                   project_name="{0} Based Historical flows by US Army ERDC".format(description))
             
             #generate return periods
             if generate_return_periods_file:
-                return_periods_file = os.path.join(master_watershed_output_directory, 'return_periods_{}'.format(out_file_ending))
+                return_periods_file = os.path.join(master_watershed_output_directory, 'return_periods_{0}'.format(out_file_ending))
                 #assume storm has 3 day length
                 storm_time_step_length = int(3*3600/time_step*24)
                 generate_return_periods(era_rapid_output_file, return_periods_file, int(len(era_interim_file_list)/365), storm_time_step_length)
-
     #print info to user
     time_end = datetime.datetime.utcnow()
     print "Time Begin All: " + str(time_begin_all)

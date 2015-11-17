@@ -63,6 +63,7 @@ class CreateInflowFileFromLDASRunoff(object):
         raise Exception(self.errorMessages[3])
         """
         return
+        
     def readInWeightTable(self, in_weight_table):
         """
         Read in weight table
@@ -107,30 +108,24 @@ class CreateInflowFileFromLDASRunoff(object):
         dim_Time = data_out_nc.createDimension('Time', tot_size_time)
         dim_RiverID = data_out_nc.createDimension(self.streamID, self.size_streamID)
         var_m3_riv = data_out_nc.createVariable('m3_riv', 'f4', 
-                                                ('Time', self.streamID),
-                                                fill_value=0)
+                                                ('Time', self.streamID))
         data_out_nc.close()
 
-    def execute(self, nc_file, index, in_weight_table, out_nc, grid_type, num_files=0):
+    def execute(self, nc_file_list, index_list, in_weight_table, 
+                out_nc, grid_type):
+                
         """The source code of the tool."""
-
-        
-        # Validate the netcdf dataset
-        vars_oi_index = self.dataValidation(nc_file)
-
-        self.dataIdentify(nc_file, vars_oi_index)
-
-        ''' Read the netcdf dataset'''
-        data_in_nc = NET.Dataset(nc_file)
-
         if not os.path.exists(out_nc):
-            self.generateOutputInflowFile(out_nc, in_weight_table, 
-                                          tot_size_time=num_files*size_time)
-        else:
-            self.readInWeightTable(in_weight_table)
-        
-        data_out_nc = NET.Dataset(out_nc, "a", format = "NETCDF3_CLASSIC")
+            print "ERROR: Outfile has not been created. You need to run: generateOutputInflowFile function ..."
+            raise Exception("ERROR: Outfile has not been created. You need to run: generateOutputInflowFile function ...")
             
+        if len(nc_file_list) != len(index_list):
+            print "ERROR: Number of runoff files not equal to number of indices ..."
+            raise Exception("ERROR: Number of runoff files not equal to number of indices ...")
+        
+        self.readInWeightTable(in_weight_table)
+
+        #get indices of subset of data
         lon_ind_all = [long(i) for i in self.dict_list[self.header_wt[2]]]
         lat_ind_all = [long(j) for j in self.dict_list[self.header_wt[3]]]
 
@@ -140,68 +135,115 @@ class CreateInflowFileFromLDASRunoff(object):
         min_lat_ind_all = min(lat_ind_all)
         max_lat_ind_all = max(lat_ind_all)
 
-        '''Calculate water inflows'''
-        print "Calculating water inflows for", os.path.basename(nc_file) , grid_type, "..."
-        data_subset_surface_runoff = data_in_nc.variables[self.vars_oi[2]][min_lat_ind_all:max_lat_ind_all+1, min_lon_ind_all:max_lon_ind_all+1]
-        data_subset_subsurface_runoff = data_in_nc.variables[self.vars_oi[3]][min_lat_ind_all:max_lat_ind_all+1, min_lon_ind_all:max_lon_ind_all+1]
-        #check surface runoff dims
-        len_lat_subset_surface = data_subset_surface_runoff.shape[0]
-        len_lon_subset_surface = data_subset_surface_runoff.shape[1]
-        #check subsurface runoff dims
-        len_lat_subset_subsurface = data_subset_surface_runoff.shape[0]
-        len_lon_subset_subsurface = data_subset_surface_runoff.shape[1]
-        #make sure they are the same
-        if len_lat_subset_surface != len_lat_subset_subsurface:
-            raise Exception("Surface and subsurface lat lengths do not agree ...")
-        if len_lon_subset_surface != len_lon_subset_subsurface:
-            raise Exception("Surface and subsurface lon lengths do not agree ...")
-        #reshape the runoff
-        data_subset_surface_runoff = data_subset_surface_runoff.reshape(len_lat_subset_surface * len_lon_subset_surface)
-        data_subset_subsurface_runoff = data_subset_subsurface_runoff.reshape(len_lat_subset_subsurface * len_lon_subset_subsurface)
-
-        # compute new indices based on the data_subset_surface
         index_new = []
-        for r in range(0,self.count-1):
-            ind_lat_orig = lat_ind_all[r]
-            ind_lon_orig = lon_ind_all[r]
-            index_new.append((ind_lat_orig - min_lat_ind_all)*len_lon_subset_surface + (ind_lon_orig - min_lon_ind_all))
-
-        # obtain a new subset of data
-        data_subset_surface_new = data_subset_surface_runoff[index_new]
-        data_subset_subsurface_new = data_subset_subsurface_runoff[index_new]
+        conversion_factor = None
+        
         
         # start compute inflow
-        conversion_factor = 1.0/1000 #convert from kg/m^2 (i.e. mm) to m
-        if "s" in data_in_nc.variables[self.vars_oi[2]].getncattr("units"):
-            #that means kg/m^2/s
-            conversion_factor *= self.time_step_seconds
-        data_in_nc.close()
+        data_out_nc = NET.Dataset(out_nc, "a", format = "NETCDF3_CLASSIC")
 
-        pointer = 0
-        for stream_index in range(self.size_streamID):
-            npoints = int(self.dict_list[self.header_wt[4]][pointer])
-            # Check if all npoints points correspond to the same streamID
-            if len(set(self.dict_list[self.header_wt[0]][pointer : (pointer + npoints)])) != 1:
-                print "ROW INDEX", pointer
-                print "COMID", self.dict_list[self.header_wt[0]][pointer]
-                raise Exception(self.errorMessages[2])
+        #combine inflow data
+        for nc_file_array_index, nc_file_array in enumerate(nc_file_list):
 
-            area_sqm_npoints = NUM.array([float(k) for k in self.dict_list[self.header_wt[1]][pointer : (pointer + npoints)]])
-            data_goal_surface = data_subset_surface_new[pointer:(pointer + npoints)]
-            data_goal_subsurface = data_subset_subsurface_new[pointer:(pointer + npoints)]
-            ro_stream = NUM.add(data_goal_surface, data_goal_subsurface) * area_sqm_npoints * conversion_factor
-            try:
-                #ignore masked values
-                data_out_nc.variables['m3_riv'][index,stream_index] = ro_stream.sum()
-            except ValueError as ex:
-                #if there is no value, then fill with zero
-                if ro_stream.sum() is NUM.ma.masked:
-                    ro_stream = ro_stream.filled(0)
-                    data_out_nc.variables['m3_riv'][index,stream_index] = ro_stream.sum()
+            index = index_list[nc_file_array_index]
+            
+            if not isinstance(nc_file_array, list): 
+                nc_file_array = [nc_file_array]
+            else:
+                nc_file_array = nc_file_array
+                
+            data_subset_surface_all = None
+            data_subset_subsurface_all = None
+
+            for nc_file in nc_file_array:
+                # Validate the netcdf dataset
+                vars_oi_index = self.dataValidation(nc_file)
+
+                #self.dataIdentify(nc_file, vars_oi_index)
+
+                ''' Read the netcdf dataset'''
+                data_in_nc = NET.Dataset(nc_file)
+
+                '''Calculate water inflows'''
+                print "Calculating water inflows for", os.path.basename(nc_file) , grid_type, "..."
+                data_subset_surface_runoff = data_in_nc.variables[self.vars_oi[2]][min_lat_ind_all:max_lat_ind_all+1, min_lon_ind_all:max_lon_ind_all+1]
+                data_subset_subsurface_runoff = data_in_nc.variables[self.vars_oi[3]][min_lat_ind_all:max_lat_ind_all+1, min_lon_ind_all:max_lon_ind_all+1]
+                #check surface runoff dims
+                len_lat_subset_surface = data_subset_surface_runoff.shape[0]
+                len_lon_subset_surface = data_subset_surface_runoff.shape[1]
+                #check subsurface runoff dims
+                len_lat_subset_subsurface = data_subset_surface_runoff.shape[0]
+                len_lon_subset_subsurface = data_subset_surface_runoff.shape[1]
+                #make sure they are the same
+                if len_lat_subset_surface != len_lat_subset_subsurface:
+                    data_in_nc.close()
+                    raise Exception("Surface and subsurface lat lengths do not agree ...")
+                if len_lon_subset_surface != len_lon_subset_subsurface:
+                    data_in_nc.close()
+                    raise Exception("Surface and subsurface lon lengths do not agree ...")
+
+                #reshape the runoff
+                data_subset_surface_runoff = data_subset_surface_runoff.reshape(len_lat_subset_surface * len_lon_subset_surface)
+                data_subset_subsurface_runoff = data_subset_subsurface_runoff.reshape(len_lat_subset_subsurface * len_lon_subset_subsurface)
+                 
+                if not index_new:
+                    # compute new indices based on the data_subset_surface
+                    for r in range(0,self.count-1):
+                        ind_lat_orig = lat_ind_all[r]
+                        ind_lon_orig = lon_ind_all[r]
+                        index_new.append((ind_lat_orig - min_lat_ind_all)*len_lon_subset_surface + (ind_lon_orig - min_lon_ind_all))
+                if conversion_factor == None: 
+                    #get conversion_factor
+                    conversion_factor = 1.0/1000 #convert from kg/m^2 (i.e. mm) to m
+                    if "s" in data_in_nc.variables[self.vars_oi[2]].getncattr("units"):
+                        #that means kg/m^2/s
+                        conversion_factor *= self.time_step_seconds
+                data_in_nc.close()
+
+                #obtain a new subset of data
+                data_subset_surface_new = data_subset_surface_runoff[index_new]
+                data_subset_subsurface_new = data_subset_subsurface_runoff[index_new]
+                
+                #filter data
+                data_subset_surface_new[data_subset_surface_new<0] = 0
+                data_subset_subsurface_new[data_subset_subsurface_new<0] = 0
+                
+                #combine data
+                if data_subset_surface_all == None:
+                    data_subset_surface_all = data_subset_surface_new
                 else:
-                    raise
-                                
-            pointer += npoints
+                    data_subset_surface_all = NUM.add(data_subset_surface_all, data_subset_surface_new)
+                    
+                if data_subset_subsurface_all == None:
+                    data_subset_subsurface_all = data_subset_subsurface_new
+                else:
+                    data_subset_subsurface_all = NUM.add(data_subset_subsurface_all, data_subset_subsurface_new)
 
-        # close the input and output netcdf datasets
+            pointer = 0
+            for stream_index in range(self.size_streamID):
+                npoints = int(self.dict_list[self.header_wt[4]][pointer])
+                # Check if all npoints points correspond to the same streamID
+                if len(set(self.dict_list[self.header_wt[0]][pointer : (pointer + npoints)])) != 1:
+                    print "ROW INDEX", pointer
+                    print "COMID", self.dict_list[self.header_wt[0]][pointer]
+                    raise Exception(self.errorMessages[2])
+
+                area_sqm_npoints = NUM.array([float(k) for k in self.dict_list[self.header_wt[1]][pointer : (pointer + npoints)]])
+                data_goal_surface = data_subset_surface_all[pointer:(pointer + npoints)]
+                data_goal_subsurface = data_subset_subsurface_all[pointer:(pointer + npoints)]
+                ro_stream = NUM.add(data_goal_surface, data_goal_subsurface) * area_sqm_npoints * conversion_factor
+                try:
+                    #ignore masked values
+                    data_out_nc.variables['m3_riv'][index,stream_index] = ro_stream.sum()
+                except ValueError as ex:
+                    #if there is no value, then fill with zero
+                    if ro_stream.sum() is NUM.ma.masked:
+                        ro_stream = ro_stream.filled(0)
+                        data_out_nc.variables['m3_riv'][index,stream_index] = ro_stream.sum()
+                    else:
+                        raise
+                                    
+                pointer += npoints
+
+        # close the output netcdf dataset
         data_out_nc.close()
