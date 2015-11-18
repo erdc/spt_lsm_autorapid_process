@@ -110,6 +110,8 @@ class CreateInflowFileFromLDASRunoff(object):
         var_m3_riv = data_out_nc.createVariable('m3_riv', 'f4', 
                                                 ('Time', self.streamID))
         data_out_nc.close()
+        #empty list to be read in later
+        self.dict_list = {}
 
     def execute(self, nc_file_list, index_list, in_weight_table, 
                 out_nc, grid_type):
