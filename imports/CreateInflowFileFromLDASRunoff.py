@@ -211,12 +211,12 @@ class CreateInflowFileFromLDASRunoff(object):
                 data_subset_subsurface_new[data_subset_subsurface_new<0] = 0
                 
                 #combine data
-                if data_subset_surface_all == None:
+                if data_subset_surface_all is None:
                     data_subset_surface_all = data_subset_surface_new
                 else:
                     data_subset_surface_all = NUM.add(data_subset_surface_all, data_subset_surface_new)
                     
-                if data_subset_subsurface_all == None:
+                if data_subset_subsurface_all is None:
                     data_subset_subsurface_all = data_subset_subsurface_new
                 else:
                     data_subset_subsurface_all = NUM.add(data_subset_subsurface_all, data_subset_subsurface_new)
