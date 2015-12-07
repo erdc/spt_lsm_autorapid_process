@@ -236,14 +236,14 @@ class CreateInflowFileFromLDASRunoff(object):
                 ro_stream = NUM.add(data_goal_surface, data_goal_subsurface) * area_sqm_npoints * conversion_factor
                 try:
                     #ignore masked values
-                    data_out_nc.variables['m3_riv'][index,stream_index] = ro_stream.sum()
-                except ValueError as ex:
-                    #if there is no value, then fill with zero
                     if ro_stream.sum() is NUM.ma.masked:
-                        ro_stream = ro_stream.filled(0)
-                        data_out_nc.variables['m3_riv'][index,stream_index] = ro_stream.sum()
-                    else:
-                        raise
+                        data_out_nc.variables['m3_riv'][index,stream_index] = 0
+		    else:
+                    	data_out_nc.variables['m3_riv'][index,stream_index] = ro_stream.sum()
+                except ValueError as ex:
+		    print "M3", len(data_out_nc.variables['m3_riv'][index,stream_index]), data_out_nc.variables['m3_riv'][index,stream_index]
+		    print "RO", len(ro_stream.sum()), ro_stream.sum()
+                    raise
                                     
                 pointer += npoints
 
