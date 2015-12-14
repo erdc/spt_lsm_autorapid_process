@@ -198,8 +198,10 @@ class CreateInflowFileFromLDASRunoff(object):
                     #get conversion_factor
                     conversion_factor = 1.0/1000 #convert from kg/m^2 (i.e. mm) to m
                     if "s" in data_in_nc.variables[self.vars_oi[2]].getncattr("units"):
-                        #that means kg/m^2/s
-                        conversion_factor *= self.time_step_seconds
+                        #that means kg/m^2/s in GLDAS v1 that is 3-hr avg, so multiply
+                        #by 3 (ex. 3*3600/3600). Assumed same for others (ex. 1*3600/3600).
+                        #ftp://hydro1.sci.gsfc.nasa.gov/data/s4pa/GLDAS_V1/README.GLDAS.pdf
+                        conversion_factor *= self.time_step_seconds/3600
                 data_in_nc.close()
 
                 #obtain a new subset of data
