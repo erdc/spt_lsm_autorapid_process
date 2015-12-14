@@ -180,7 +180,7 @@ def run_era_interim_rapid_process(rapid_executable_location,
             #NLDAS NOAH/VIC
             latitude_dim = 'lat_110'
         elif 'north_south' in dim_list:
-            #LIS
+            #LIS/Joules
             latitude_dim = 'north_south'
         
         longitude_dim = "lon"
@@ -193,7 +193,7 @@ def run_era_interim_rapid_process(rapid_executable_location,
             #NLDAS NOAH/VIC
             longitude_dim = 'lon_110'
         elif 'east_west' in dim_list:
-            #LIS
+            #LIS/Joules
             longitude_dim = 'east_west'
         
         lat_dim_size = len(era_example_file.dimensions[latitude_dim])
@@ -234,6 +234,7 @@ def run_era_interim_rapid_process(rapid_executable_location,
                 #LIS
                 subsurface_runoff_var = var
             elif var.lower() == "ro":
+                #ERA Interim
                 surface_runoff_var = var
             
 
@@ -417,7 +418,7 @@ def run_era_interim_rapid_process(rapid_executable_location,
                               ZS_TauR=time_step, #duration of routing procedure (time step of runoff data)
                               ZS_dtR=15*60, #internal routing time step
                               ZS_TauM=total_num_time_steps*time_step, #total simulation time 
-                              ZS_dtM=86400 #RAPID recommended internal time step (1 day)
+                              ZS_dtM=time_step #RAPID recommended internal time step (1 day)
                              )
     
         #run ERA Interim processes
@@ -477,7 +478,6 @@ def run_era_interim_rapid_process(rapid_executable_location,
                       chunksize=1)
             pool.close()
             pool.join()
-            
             #run RAPID for the watershed
             era_rapid_output_file = os.path.join(master_watershed_output_directory,
                                                  'Qout_{0}'.format(out_file_ending))
@@ -496,8 +496,9 @@ def run_era_interim_rapid_process(rapid_executable_location,
                                                                 r'comid_lat_lon_z\.csv')
             
             rapid_manager.update_reach_number_data()
-            #rapid_manager.generate_namelist_file("rapid_namelist_{}".format(out_file_ending[:-3]))
-            rapid_manager.run()
+            rapid_manager.generate_namelist_file(os.path.join(master_watershed_input_directory,
+                                                              "rapid_namelist_{}".format(out_file_ending[:-3])))
+            #rapid_manager.run()
             rapid_manager.make_output_CF_compliant(simulation_start_datetime=actual_simulation_start_datetime,
                                                    comid_lat_lon_z_file=comid_lat_lon_z_file,
                                                    project_name="{0} Based Historical flows by US Army ERDC".format(description))
