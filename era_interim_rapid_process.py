@@ -496,6 +496,7 @@ def run_era_interim_rapid_process(rapid_executable_location,
                                                                 r'comid_lat_lon_z\.csv')
             
             rapid_manager.update_reach_number_data()
+            #rapid_manager.generate_namelist_file("rapid_namelist_{}".format(out_file_ending[:-3]))
             rapid_manager.run()
             rapid_manager.make_output_CF_compliant(simulation_start_datetime=actual_simulation_start_datetime,
                                                    comid_lat_lon_z_file=comid_lat_lon_z_file,
