@@ -201,7 +201,7 @@ def run_era_interim_rapid_process(rapid_executable_location,
 
         #IDENTIFY VARIABLES
         var_list = era_example_file.variables.keys()
-        
+
         latitude_var="lat"
         if 'latitude' in var_list:
             latitude_var = 'latitude'
@@ -209,7 +209,9 @@ def run_era_interim_rapid_process(rapid_executable_location,
             latitude_var = 'g0_lat_0'
         elif 'lat_110' in var_list:
             latitude_var = 'lat_110'
-        
+        elif 'north_south' in var_list:
+            latitude_var = 'north_south'
+    
         longitude_var="lon"
         if 'longitude' in var_list:
             longitude_var = 'longitude'
@@ -217,7 +219,9 @@ def run_era_interim_rapid_process(rapid_executable_location,
             longitude_var = 'g0_lon_1'
         elif 'lon_110' in var_list:
             longitude_var = 'lon_110'
-        
+        elif 'east_west' in var_list:
+            longitude_var = 'east_west'
+
         surface_runoff_var=""
         subsurface_runoff_var=""
         for var in var_list:
@@ -240,9 +244,10 @@ def run_era_interim_rapid_process(rapid_executable_location,
 
 
         #IDENTIFY GRID TYPE & TIME STEP
-        if 'time' in var_list:
+        try:
             file_size_time = len(era_example_file.variables['time'][:])
-        else:
+        except Exception as ex:
+            print "ERROR:", ex
             print "Assuming time dimension is 1"
             file_size_time = 1
 
@@ -329,7 +334,31 @@ def run_era_interim_rapid_process(rapid_executable_location,
             else:
                 era_example_file.close()
                 raise Exception("Unsupported LIS time step.")
+        
+            total_num_time_steps=file_size_time*len(era_interim_file_list)
+            
+            RAPIDinflowECMWF_tool = CreateInflowFileFromLDASRunoff(latitude_dim,
+                                                                   longitude_dim,
+                                                                   latitude_var,
+                                                                   longitude_var,
+                                                                   surface_runoff_var,
+                                                                   subsurface_runoff_var,
+                                                                   time_step)
 
+        elif institution == "Met Office, UK":
+            print "Runoff file identified as Joules GRID"
+            #this is the LIS model
+            weight_file_name = r'weight_lis\.csv'
+            grid_type = 'joules'
+            description = "Met Office Joules Hourly Runoff"
+            model_name = "met_office"
+            #time units are in minutes
+            if file_size_time == 1:
+                time_step = 1*3600 #hourly
+            else:
+                era_example_file.close()
+                raise Exception("Unsupported LIS time step.")
+        
             total_num_time_steps=file_size_time*len(era_interim_file_list)
 
             RAPIDinflowECMWF_tool = CreateInflowFileFromLDASRunoff(latitude_dim,
@@ -339,7 +368,6 @@ def run_era_interim_rapid_process(rapid_executable_location,
                                                                    surface_runoff_var,
                                                                    subsurface_runoff_var,
                                                                    time_step)
-               
         elif surface_runoff_var.startswith("SSRUN") \
             and subsurface_runoff_var.startswith("BGRUN"):
 
@@ -455,25 +483,25 @@ def run_era_interim_rapid_process(rapid_executable_location,
 
             partition_list, partition_index_list = partition(era_interim_file_list, NUM_CPUS)
             for loop_index, cpu_grouped_file_list in enumerate(partition_list):
-                job_combinations.append((watershed.lower(), 
+                job_combinations.append((watershed.lower(),
                                          subbasin.lower(),
-                                         cpu_grouped_file_list, 
+                                         cpu_grouped_file_list,
                                          partition_index_list[loop_index],
                                          erai_weight_table_file,
                                          grid_type,
                                          master_rapid_runoff_file,
                                          RAPIDinflowECMWF_tool))
-                #generate_inflows_from_runoff((watershed.lower(), 
+                #generate_inflows_from_runoff((watershed.lower(),
                 #                              subbasin.lower(),
-                #                              cpu_grouped_file_list, 
-                #                              inflow_index_list,
+                #                              cpu_grouped_file_list,
+                #                              partition_index_list[loop_index],
                 #                              erai_weight_table_file,
                 #                              grid_type,
                 #                              master_rapid_runoff_file,
                 #                              RAPIDinflowECMWF_tool))
             pool = multiprocessing.Pool()
             #chunksize=1 makes it so there is only one task per cpu
-            pool.imap(generate_inflows_from_runoff, 
+            pool.imap(generate_inflows_from_runoff,
                       job_combinations,
                       chunksize=1)
             pool.close()
@@ -498,7 +526,7 @@ def run_era_interim_rapid_process(rapid_executable_location,
             rapid_manager.update_reach_number_data()
             rapid_manager.generate_namelist_file(os.path.join(master_watershed_input_directory,
                                                               "rapid_namelist_{}".format(out_file_ending[:-3])))
-            #rapid_manager.run()
+            rapid_manager.run()
             rapid_manager.make_output_CF_compliant(simulation_start_datetime=actual_simulation_start_datetime,
                                                    comid_lat_lon_z_file=comid_lat_lon_z_file,
                                                    project_name="{0} Based Historical flows by US Army ERDC".format(description))

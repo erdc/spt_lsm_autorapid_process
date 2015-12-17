@@ -45,6 +45,7 @@ class CreateInflowFileFromLDASRunoff(object):
 
         for var in self.vars_oi:
             if var not in data_nc.variables.keys():
+                print var
                 data_nc.close()
                 raise Exception(self.errorMessages[2])
 
@@ -83,8 +84,8 @@ class CreateInflowFileFromLDASRunoff(object):
                     #check number of columns in the weight table
                     if len(row) != len(self.header_wt):
                         raise Exception(self.errorMessages[4])
-                    #check header
-                    if row[1:len(self.header_wt)] != self.header_wt[1:len(self.header_wt)]:
+                    #check header (Skipped checking last two cols becase they may be different)
+                    if row[1:len(self.header_wt)-2] != self.header_wt[1:len(self.header_wt)-2]:
                         raise Exception(self.errorMessages[5])
                     self.streamID = row[0]
                     self.count += 1
