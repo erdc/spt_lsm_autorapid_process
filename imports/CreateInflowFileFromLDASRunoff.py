@@ -200,9 +200,9 @@ class CreateInflowFileFromLDASRunoff(object):
                     conversion_factor = 1.0/1000 #convert from kg/m^2 (i.e. mm) to m
                     if "s" in data_in_nc.variables[self.vars_oi[2]].getncattr("units"):
                         #that means kg/m^2/s in GLDAS v1 that is 3-hr avg, so multiply
-                        #by 3 (ex. 3*3600/3600). Assumed same for others (ex. 1*3600/3600).
+                        #by 3 hr (ex. 3*3600). Assumed same for others (ex. 1*3600).
                         #ftp://hydro1.sci.gsfc.nasa.gov/data/s4pa/GLDAS_V1/README.GLDAS.pdf
-                        conversion_factor *= self.time_step_seconds/3600
+                        conversion_factor *= self.time_step_seconds
                 data_in_nc.close()
 
                 #obtain a new subset of data
@@ -241,11 +241,11 @@ class CreateInflowFileFromLDASRunoff(object):
                     #ignore masked values
                     if ro_stream.sum() is NUM.ma.masked:
                         data_out_nc.variables['m3_riv'][index,stream_index] = 0
-		    else:
+                    else:
                     	data_out_nc.variables['m3_riv'][index,stream_index] = ro_stream.sum()
                 except ValueError as ex:
-		    print "M3", len(data_out_nc.variables['m3_riv'][index,stream_index]), data_out_nc.variables['m3_riv'][index,stream_index]
-		    print "RO", len(ro_stream.sum()), ro_stream.sum()
+                    print "M3", len(data_out_nc.variables['m3_riv'][index,stream_index]), data_out_nc.variables['m3_riv'][index,stream_index]
+                    print "RO", len(ro_stream.sum()), ro_stream.sum()
                     raise
                                     
                 pointer += npoints
