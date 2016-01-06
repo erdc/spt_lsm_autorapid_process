@@ -349,7 +349,7 @@ def run_era_interim_rapid_process(rapid_executable_location,
         elif institution == "Met Office, UK":
             print "Runoff file identified as Joules GRID"
             #this is the LIS model
-            weight_file_name = r'weight_lis\.csv'
+            weight_file_name = r'weight_joules\.csv'
             grid_type = 'joules'
             description = "Met Office Joules Hourly Runoff"
             model_name = "met_office"
