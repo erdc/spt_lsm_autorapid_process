@@ -68,7 +68,7 @@ def run_autorapid_process(autoroute_executable_location, #location of AutoRoute 
                 print "AutoRoute watershed", autoroute_input_directory, "not in RAPID IO folder. Skipping ..."
                 continue
             try:
-                return_period_file=case_insensitive_file_search(master_watershed_rapid_input_directory, r'return_periods.nc')
+                return_period_file=case_insensitive_file_search(master_watershed_rapid_input_directory, r'return_period.*?\.nc')
             except Exception:
                 print "AutoRoute watershed", autoroute_input_directory, "missing return period file. Skipping ..."
                 continue
@@ -201,7 +201,7 @@ def run_autorapid_process(autoroute_executable_location, #location of AutoRoute 
                 pass
 
 if __name__ == "__main__":
-    run_autorapid_process(autoroute_executable_location='/home/alan/work/scripts/AutoRouteGDAL/source_code/autoroute',
+    run_autorapid_process(autoroute_executable_location='/home/alan/work/scripts/AutoRoute/source_code/autoroute',
                           autoroute_io_files_location='/home/alan/work/autoroute-io',
                           rapid_io_files_location='/home/alan/work/rapid-io',
                           condor_log_directory='/home/alan/work/condor',
