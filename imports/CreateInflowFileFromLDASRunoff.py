@@ -202,7 +202,8 @@ class CreateInflowFileFromLDASRunoff(object):
                         #that means kg/m^2/s in GLDAS v1 that is 3-hr avg, so multiply
                         #by 3 hr (ex. 3*3600). Assumed same for others (ex. 1*3600).
                         #ftp://hydro1.sci.gsfc.nasa.gov/data/s4pa/GLDAS_V1/README.GLDAS.pdf
-                        conversion_factor *= self.time_step_seconds
+			#If combining files, need to take average of these, so divide by number of files
+                        conversion_factor *= self.time_step_seconds/len(nc_file_array)
                 data_in_nc.close()
 
                 #obtain a new subset of data

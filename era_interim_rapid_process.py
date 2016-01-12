@@ -330,7 +330,8 @@ def run_era_interim_rapid_process(rapid_executable_location,
             model_name = "nasa"
             #time units are in minutes
             if file_size_time == 1:
-                time_step = 1*3600 #hourly
+                #time_step = 1*3600 #hourly
+		time_step = 3*3600 #3-hourly
             else:
                 era_example_file.close()
                 raise Exception("Unsupported LIS time step.")
@@ -348,13 +349,14 @@ def run_era_interim_rapid_process(rapid_executable_location,
         elif institution == "Met Office, UK":
             print "Runoff file identified as Joules GRID"
             #this is the LIS model
-            weight_file_name = r'weight_lis\.csv'
+            weight_file_name = r'weight_joules\.csv'
             grid_type = 'joules'
             description = "Met Office Joules Hourly Runoff"
             model_name = "met_office"
             #time units are in minutes
             if file_size_time == 1:
-                time_step = 1*3600 #hourly
+                #time_step = 1*3600 #hourly
+		time_step = 3*3600 #3-hourly	
             else:
                 era_example_file.close()
                 raise Exception("Unsupported LIS time step.")
@@ -416,11 +418,6 @@ def run_era_interim_rapid_process(rapid_executable_location,
                     era_example_file.close()
                     raise Exception("Unsupported NLDAS time step.")
                 
-                if file_size_time*len(era_interim_file_list) % 3 != 0:
-                    era_example_file.close()
-                    raise Exception("Number of files needs to be divisible by 3")
-                    
-                total_num_time_steps=file_size_time*len(era_interim_file_list)/3
             else:
                 era_example_file.close()
                 raise Exception("Unsupported runoff grid.")
@@ -437,7 +434,15 @@ def run_era_interim_rapid_process(rapid_executable_location,
             raise Exception("Unsupported runoff grid.")
         
         era_example_file.close()
-    
+
+    	#VALIDATING INPUT IF DIVIDING BY 3
+        if grid_type == 'nldas' or grid_type == 'lis' or grid_type == 'joules':
+	    num_extra_files = file_size_time*len(era_interim_file_list) % 3
+            if num_extra_files != 0:
+                print "WARNING: Number of files needs to be divisible by 3. Remainder is" , num_extra_files
+		print "This means your simulation will be truncated"
+            total_num_time_steps=int(file_size_time*len(era_interim_file_list)/3)
+
         out_file_ending = "{0}_{1}_{2}hr_{3}".format(model_name, grid_type, time_step/3600, out_file_ending)
         #set up RAPID manager
         rapid_manager = RAPID(rapid_executable_location=rapid_executable_location,
@@ -476,10 +481,11 @@ def run_era_interim_rapid_process(rapid_executable_location,
     
             job_combinations = []
             past_inflow_index_list_length = 0
-            if grid_type == 'nldas':
-                print "Grouping nldas in threes"
+            if grid_type == 'nldas' or grid_type == 'lis' or grid_type == 'joules':
+                print "Grouping {0} in threes".format(grid_type)
                 #group files in three
-                era_interim_file_list = [era_interim_file_list[nldas_index:nldas_index+3] for nldas_index in range(0, len(era_interim_file_list), 3)]
+                era_interim_file_list = [era_interim_file_list[nldas_index:nldas_index+3] for nldas_index in range(0, len(era_interim_file_list), 3)\
+					 if len(era_interim_file_list[nldas_index:nldas_index+3])==3]
 
             partition_list, partition_index_list = partition(era_interim_file_list, NUM_CPUS)
             for loop_index, cpu_grouped_file_list in enumerate(partition_list):
@@ -506,6 +512,7 @@ def run_era_interim_rapid_process(rapid_executable_location,
                       chunksize=1)
             pool.close()
             pool.join()
+
             #run RAPID for the watershed
             era_rapid_output_file = os.path.join(master_watershed_output_directory,
                                                  'Qout_{0}'.format(out_file_ending))
@@ -530,7 +537,7 @@ def run_era_interim_rapid_process(rapid_executable_location,
             rapid_manager.make_output_CF_compliant(simulation_start_datetime=actual_simulation_start_datetime,
                                                    comid_lat_lon_z_file=comid_lat_lon_z_file,
                                                    project_name="{0} Based Historical flows by US Army ERDC".format(description))
-            
+
             #generate return periods
             if generate_return_periods_file:
                 return_periods_file = os.path.join(master_watershed_output_directory, 'return_periods_{0}'.format(out_file_ending))
