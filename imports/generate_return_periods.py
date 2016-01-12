@@ -8,11 +8,15 @@ def generate_return_periods(era_interim_file, return_period_file, num_years, ste
     Create warning points from era interim data and ECMWD prediction data
 
     """
-    id_dim_name = u'COMID'
 
     print "Extracting ERA Interim Data ..."
     #get ERA Interim Data Analyzed
     era_data_nc = nc.Dataset(era_interim_file, mode="r")
+    dims = era_data_nc.dimensions
+    id_dim_name = 'COMID'
+    if 'rivid' in dims:
+        id_dim_name = 'rivid'
+
     era_interim_comids = era_data_nc.variables[id_dim_name][:]
     comid_list_length = len(era_interim_comids)
     era_interim_lat_data = era_data_nc.variables['lat'][:]
