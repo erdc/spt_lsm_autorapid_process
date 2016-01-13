@@ -26,7 +26,6 @@ def generate_seasonal_intitialization(rapid_historical_streamflow_file,
         file.
     """
     print "Generating seasonal average qinit file from qout file ..."
-    print "Extracting data ..."
     #get information from datasets
     data_nc = Dataset(rapid_historical_streamflow_file, mode="r")
     
@@ -53,6 +52,7 @@ def generate_seasonal_intitialization(rapid_historical_streamflow_file,
                 elif var_time.day >= datetime_min.day and var_time.day < datetime_max.day:
                     time_indices.append(idx)
 
+        print "Extracting data ..."
         qout_dimensions = data_nc.variables['Qout'].dimensions
         if qout_dimensions[1].lower() == 'time' and qout_dimensions[0].lower() == id_dim_name.lower():
             #the data is CF compliant and has time=0 added to output
