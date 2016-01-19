@@ -1,5 +1,5 @@
 # spt_lsm_autorapid_process
-Code to use to prepare input data for RAPID from ECMWF ERA Interim Data or NASA GLDAS/NLDAS/LIS data.
+Code to use to prepare input data for RAPID from Land Surface Models (LSM) such as ECMWF ERA Interim Data or NASA GLDAS/NLDAS/LIS data.
 
 ##Step 1: Install RAPID and RAPIDpy
 See: https://github.com/erdc-cm/RAPIDpy
