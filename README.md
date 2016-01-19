@@ -1,11 +1,11 @@
-# spt_erai_autorapid_process
+# spt_lsm_autorapid_process
 Code to use to prepare input data for RAPID from ECMWF ERA Interim Data or NASA GLDAS/NLDAS/LIS data.
 
 ##Step 1: Install RAPID and RAPIDpy
 See: https://github.com/erdc-cm/RAPIDpy
 
-##Step 2: Install AutoRoute and AutoRoute-py
-See: https://github.com/erdc-cm/AutoRoute-py
+##Step 2: Install AutoRoute and AutoRoutePy
+See: https://github.com/erdc-cm/AutoRoutePy
 
 ##Step 3: Install Python Libraries
 ```
@@ -17,8 +17,8 @@ $ exit
 ##Step 4: Download the source code
 ```
 $ cd /path/to/your/scripts/
-$ git clone https://github.com/erdc-cm/spt_erai_autorapid_process.git
-$ cd spt_erai_autorapid_process
+$ git clone https://github.com/erdc-cm/spt_lsm_autorapid_process.git
+$ cd spt_lsm_autorapid_process
 $ git submodule init
 $ git submodule update
 ```
