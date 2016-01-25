@@ -41,16 +41,13 @@ def clean_logs(condor_log_directory, main_log_directory, prepend="rapid_"):
         if (date_today-log_datetime > week_timedelta):
             os.remove(os.path.join(main_log_directory, main_log_file))
 
-def find_current_rapid_output(forecast_directory, watershed, subbasin):
+def partition(lst, n):
     """
-    Finds the most current files output from RAPID
+        Divide list into n equal parts
     """
-    if os.path.exists(forecast_directory):
-        basin_files = glob(os.path.join(forecast_directory,"Qout_%s_%s_*.nc" % (watershed, subbasin)))
-        if len(basin_files) >0:
-            return basin_files
-    #there are none found
-    return None
+    q, r = divmod(len(lst), n)
+    indices = [q*i + min(i,r) for i in xrange(n+1)]
+    return [lst[indices[i]:indices[i+1]] for i in xrange(n)], [range(indices[i],indices[i+1]) for i in xrange(n)]
 
 def get_valid_watershed_list(input_directory):
     """
@@ -65,15 +62,6 @@ def get_valid_watershed_list(input_directory):
             print directory, "incorrectly formatted. Skipping ..."
     return valid_input_directories
 
-def get_date_timestep_ensemble_from_forecast(forecast_name):
-    """
-    Gets the datetimestep from forecast
-    """
-    forecast_split = os.path.basename(forecast_name).split(".")
-    forecast_date_timestep = ".".join(forecast_split[:2])
-    ensemble_number = int(forecast_split[2])
-    return forecast_date_timestep, ensemble_number
-
 def get_watershed_subbasin_from_folder(folder_name):
     """
     Get's the watershed & subbasin name from folder
@@ -82,13 +70,3 @@ def get_watershed_subbasin_from_folder(folder_name):
     watershed = input_folder_split[0].lower()
     subbasin = input_folder_split[1].lower()
     return watershed, subbasin
-
-def csv_to_list(csv_file, delimiter=','):
-    """
-    Reads in a CSV file and returns the contents as list,
-    where every row is stored as a sublist, and each element
-    in the sublist represents 1 cell in the table.
-    """
-    with open(csv_file, 'rb') as csv_con:
-        reader = csv.reader(csv_con, delimiter=delimiter)
-        return list(reader)
