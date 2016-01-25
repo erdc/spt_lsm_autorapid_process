@@ -1,6 +1,8 @@
 # spt_lsm_autorapid_process
 Code to use to prepare input data for RAPID from Land Surface Models (LSM) such as ECMWF ERA Interim Data or NASA GLDAS/NLDAS/LIS data.
 
+[![DOI](https://zenodo.org/badge/19918/erdc-cm/spt_lsm_autorapid_process.svg)](https://zenodo.org/badge/latestdoi/19918/erdc-cm/spt_lsm_autorapid_process)
+
 ##Step 1: Install RAPID and RAPIDpy
 See: https://github.com/erdc-cm/RAPIDpy
 
@@ -45,7 +47,8 @@ if __name__ == "__main__":
         lsm_data_location='/home/alan/autorapid/era_data',
         simulation_start_datetime=datetime(1980, 1, 1),
         simulation_end_datetime=datetime(2014, 12, 31),
-        generate_return_periods_file=False,    )
+        generate_return_periods_file=False,
+    )
 ```
 Go into *era_interim_rapid_process.sh* and change make sure the path locations and variables are correct for your instance.
 
