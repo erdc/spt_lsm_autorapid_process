@@ -1,18 +1,25 @@
-#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+##
+##  lsm_rapid_process.py
+##  spt_lsm_autorapid_process
+##
+##  Created by Alan D. Snow.
+##  Copyright © 2015-2016 Alan D Snow. All rights reserved.
+##  License: BSD-3 Clause
+
 from datetime import datetime
 import multiprocessing
 from netCDF4 import Dataset
 import os
 from RAPIDpy.rapid import RAPID
+from RAPIDpy.helper_functions import case_insensitive_file_search
 import re
 
 #local imports
 from imports.CreateInflowFileFromERAInterimRunoff import CreateInflowFileFromERAInterimRunoff
 from imports.CreateInflowFileFromLDASRunoff import CreateInflowFileFromLDASRunoff
-from imports.ftp_ecmwf_download import download_all_ftp
 from imports.generate_return_periods import generate_return_periods
-from imports.helper_functions import (case_insensitive_file_search,
-                                      get_valid_watershed_list,
+from imports.helper_functions import (get_valid_watershed_list,
                                       get_watershed_subbasin_from_folder,
                                       partition)
 
@@ -84,22 +91,13 @@ def run_lsm_rapid_process(rapid_executable_location,
     #get list of correclty formatted rapid input directories in rapid directory
     rapid_input_directories = get_valid_watershed_list(os.path.join(rapid_io_files_location, 'input'))
 
-    lsm_folder = lsm_data_location
-    if download_era_interim:
-        #download historical ERA data
-        lsm_folders = download_all_ftp(lsm_data_location,
-                                       'erai_runoff_1980to20*.tar.gz.tar',
-                                       ftp_host, ftp_login, ftp_passwd, ftp_directory)
-        lsm_folder = lsm_folders[0]
-
-
     for ensemble in ensemble_list:
         ensemble_file_ending = ".nc"
         if ensemble != None:
             ensemble_file_ending = "_{0}.nc".format(ensemble)
         #get list of files
         lsm_file_list = []
-        for subdir, dirs, files in os.walk(lsm_folder):
+        for subdir, dirs, files in os.walk(lsm_data_location):
             for erai_file in files:
                 if erai_file.endswith(ensemble_file_ending):
                     lsm_file_list.append(os.path.join(subdir, erai_file))
@@ -440,7 +438,6 @@ def run_lsm_rapid_process(rapid_executable_location,
                                                        )
     
             job_combinations = []
-            past_inflow_index_list_length = 0
             if grid_type == 'nldas' or grid_type == 'lis' or grid_type == 'joules':
                 print "Grouping {0} in threes".format(grid_type)
                 lsm_file_list = [lsm_file_list[nldas_index:nldas_index+3] for nldas_index in range(0, len(lsm_file_list), 3)\

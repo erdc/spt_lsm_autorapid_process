@@ -1,12 +1,12 @@
-'''-------------------------------------------------------------------------------
- Tool Name:   CreateInflowFileFromHighResECMWFRunoff
- Source Name: CreateInflowFileFromHighResECMWFRunoff.py
- Version:     ArcGIS 10.3
- Author:      Alan Snow (adapted from CreateInflowFileFromECMWFRunoff.py)
- Description: Creates RAPID inflow file based on the WRF_Hydro land model output
-              and the weight table previously created.
- History:     Initial coding - 6/22/2015, version 1.0 (adapted from CreateInflowFileFromECMWFRunoff.py)
- -------------------------------------------------------------------------------'''
+# -*- coding: utf-8 -*-
+##
+##  CreateInflowFileFromHighResECMWFRunoff.py
+##  spt_lsm_autorapid_process
+##
+##  Created by Alan D. Snow (adapted from CreateInflowFileFromECMWFRunoff.py).
+##  Copyright © 2015-2016 Alan D Snow. All rights reserved.
+##  License: BSD-3 Clause
+
 import csv
 import os
 import netCDF4 as NET

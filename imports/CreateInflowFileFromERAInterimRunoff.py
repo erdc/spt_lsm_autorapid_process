@@ -1,12 +1,12 @@
-'''-------------------------------------------------------------------------------
- Tool Name:   CreateInflowFileFromERAInterimRunoff
- Source Name: CreateInflowFileFromERAInterimRunoff.py
- Version:     ArcGIS 10.3
- Author:      Alan Snow (Adapted from CreateInflowFileFromECMWFRunoff.py)
- Description: Creates RAPID inflow file based on the ERA Interim land model output
-              and the weight table previously created.
- History:     Initial coding - 6/20/2015, version 1.0
--------------------------------------------------------------------------------'''
+# -*- coding: utf-8 -*-
+##
+##  CreateInflowFileFromERAInterimRunoff.py
+##  spt_lsm_autorapid_process
+##
+##  Created by Alan D. Snow (adapted from CreateInflowFileFromECMWFRunoff.py).
+##  Copyright © 2015-2016 Alan D Snow. All rights reserved.
+##  License: BSD-3 Clause
+
 import csv
 import netCDF4 as NET
 import numpy as NUM

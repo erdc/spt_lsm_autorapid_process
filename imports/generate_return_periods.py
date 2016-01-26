@@ -1,5 +1,12 @@
-#!/usr/bin/python
-#generate_return_periods.py
+# -*- coding: utf-8 -*-
+##
+##  generate_return_periods.py
+##  spt_lsm_autorapid_process
+##
+##  Created by Alan D. Snow and Scott D. Christensen.
+##  Copyright © 2015-2016 Alan D Snow and Scott D. Christensen. All rights reserved.
+##  License: BSD-3 Clause
+
 import netCDF4 as nc
 import numpy as np
 

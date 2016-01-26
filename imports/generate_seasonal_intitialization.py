@@ -6,12 +6,13 @@
 ##  Created by Alan D. Snow 2016.
 ##  Copyright © 2016 Alan D Snow. All rights reserved.
 ##
+
 import datetime
 from netCDF4 import Dataset
 import numpy as np
-import os
 from pytz import utc
-from helper_functions import csv_to_list
+from RAPIDpy.helper_functions import csv_to_list
+
 #------------------------------------------------------------------------------
 # Functions
 #------------------------------------------------------------------------------
@@ -83,9 +84,10 @@ def generate_seasonal_intitialization(rapid_historical_streamflow_file,
     else:
         raise Exception("ERROR: File must be CF 1.6 compliant with time dimension ...")
 
-
+"""
 if __name__ == "__main__":
     generate_seasonal_intitialization(rapid_historical_streamflow_file='/Users/rdchlads/autorapid/rapid-io/output/camp_lejeune-new_river/Qout_erai_t511_3hr_19800101to20141231.nc',
                                       rapid_connect_file='/Users/rdchlads/autorapid/rapid-io/input/camp_lejeune-new_river/rapid_connect.csv',
                                       rapid_sreamflow_initialization_file='/Users/rdchlads/autorapid/rapid-io/input/camp_lejeune-new_river/Qinit_seasonal_may.csv',
                                       datetime_start_initialization=datetime.datetime(2015,5,15))
+"""

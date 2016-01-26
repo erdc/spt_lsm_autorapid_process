@@ -1,4 +1,12 @@
-#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+##
+##  autorapid_process.py
+##  spt_lsm_autorapid_process
+##
+##  Created by Alan D. Snow.
+##  Copyright © 2015-2016 Alan D Snow. All rights reserved.
+##  License: BSD-3 Clause
+
 from glob import glob
 import os
 GEOSERVER_ENABLED = False

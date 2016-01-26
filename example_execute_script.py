@@ -1,8 +1,14 @@
-#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+##
+##  example_execute_script.py
+##  spt_lsm_autorapid_process
+##
+##  Created by Alan D. Snow and Scott D. Christensen.
+##  Copyright © 2016 Alan D. Snow and Scott D. Christensen. All rights reserved.
+##  License: BSD-3 Clause
 """
 Instructions: Create a copy of this file named execute_script.py. Customize the paths to match the directories on your system.
 """
-#!/usr/bin/env python
 #------------------------------------------------------------------------------
 #main process
 #------------------------------------------------------------------------------
