@@ -12,14 +12,14 @@ import multiprocessing
 from netCDF4 import Dataset
 import os
 from RAPIDpy.rapid import RAPID
-from RAPIDpy.helper_functions import case_insensitive_file_search
 import re
 
 #local imports
 from imports.CreateInflowFileFromERAInterimRunoff import CreateInflowFileFromERAInterimRunoff
 from imports.CreateInflowFileFromLDASRunoff import CreateInflowFileFromLDASRunoff
 from imports.generate_return_periods import generate_return_periods
-from imports.helper_functions import (get_valid_watershed_list,
+from imports.helper_functions import (case_insensitive_file_search,
+                                      get_valid_watershed_list,
                                       get_watershed_subbasin_from_folder,
                                       partition)
 
