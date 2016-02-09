@@ -107,7 +107,8 @@ class CreateInflowFileFromLDASRunoff(object):
         dim_Time = data_out_nc.createDimension('Time', tot_size_time)
         dim_RiverID = data_out_nc.createDimension('rivid', self.size_streamID)
         var_m3_riv = data_out_nc.createVariable('m3_riv', 'f4', 
-                                                ('Time', 'rivid'))
+                                                ('Time', 'rivid'),
+                                                fill_value=0)
         data_out_nc.close()
         #empty list to be read in later
         self.dict_list = {}
