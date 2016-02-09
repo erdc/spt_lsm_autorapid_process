@@ -74,7 +74,6 @@ class CreateInflowFileFromERAInterimRunoff(object):
         Read in weight table
         """
         
-        self.streamID = ""
         print "Reading the weight table..."
         self.dict_list = {self.header_wt[0]:[], self.header_wt[1]:[], self.header_wt[2]:[],
                           self.header_wt[3]:[], self.header_wt[4]:[], self.header_wt[5]:[],
@@ -91,7 +90,6 @@ class CreateInflowFileFromERAInterimRunoff(object):
                     #check header
                     if row[1:len(self.header_wt)] != self.header_wt[1:len(self.header_wt)]:
                         raise Exception(self.errorMessages[5])
-                    self.streamID = row[0]
                     self.count += 1
                 else:
                     for i in range(0,8):
@@ -111,9 +109,9 @@ class CreateInflowFileFromERAInterimRunoff(object):
         # data_out_nc = NET.Dataset(out_nc, "w") # by default format = "NETCDF4"
         data_out_nc = NET.Dataset(out_nc, "w", format = "NETCDF3_CLASSIC")
         dim_Time = data_out_nc.createDimension('Time', tot_size_time)
-        dim_RiverID = data_out_nc.createDimension(self.streamID, self.size_streamID)
+        dim_RiverID = data_out_nc.createDimension('rivid', self.size_streamID)
         var_m3_riv = data_out_nc.createVariable('m3_riv', 'f4', 
-                                                ('Time', self.streamID),
+                                                ('Time', 'rivid'),
                                                 fill_value=0)
         data_out_nc.close()
         #empty list to be read in later

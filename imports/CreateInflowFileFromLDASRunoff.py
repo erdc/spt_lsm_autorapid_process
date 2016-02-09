@@ -70,7 +70,6 @@ class CreateInflowFileFromLDASRunoff(object):
         Read in weight table
         """
         
-        self.streamID = ""
         print "Reading the weight table..."
         self.dict_list = {self.header_wt[0]:[], self.header_wt[1]:[], self.header_wt[2]:[],
                           self.header_wt[3]:[], self.header_wt[4]:[], self.header_wt[5]:[],
@@ -87,7 +86,6 @@ class CreateInflowFileFromLDASRunoff(object):
                     #check header (Skipped checking last two cols becase they may be different)
                     if row[1:len(self.header_wt)-2] != self.header_wt[1:len(self.header_wt)-2]:
                         raise Exception(self.errorMessages[5])
-                    self.streamID = row[0]
                     self.count += 1
                 else:
                     for i in range(0,8):
@@ -107,9 +105,9 @@ class CreateInflowFileFromLDASRunoff(object):
         # data_out_nc = NET.Dataset(out_nc, "w") # by default format = "NETCDF4"
         data_out_nc = NET.Dataset(out_nc, "w", format = "NETCDF3_CLASSIC")
         dim_Time = data_out_nc.createDimension('Time', tot_size_time)
-        dim_RiverID = data_out_nc.createDimension(self.streamID, self.size_streamID)
+        dim_RiverID = data_out_nc.createDimension('rivid', self.size_streamID)
         var_m3_riv = data_out_nc.createVariable('m3_riv', 'f4', 
-                                                ('Time', self.streamID))
+                                                ('Time', 'rivid'))
         data_out_nc.close()
         #empty list to be read in later
         self.dict_list = {}
@@ -211,8 +209,12 @@ class CreateInflowFileFromLDASRunoff(object):
                 data_subset_subsurface_new = data_subset_subsurface_runoff[index_new]
                 
                 #filter data
+                #Negative values should be zero
                 data_subset_surface_new[data_subset_surface_new<0] = 0
                 data_subset_subsurface_new[data_subset_subsurface_new<0] = 0
+                #no Data in NLDAS is 1e20
+                data_subset_surface_new[data_subset_surface_new==1e20] = 0
+                data_subset_subsurface_new[data_subset_subsurface_new==1e20] = 0
                 
                 #combine data
                 if data_subset_surface_all is None:
