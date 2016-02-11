@@ -443,7 +443,7 @@ def run_lsm_rapid_process(rapid_executable_location,
             
             erai_weight_table_file = case_insensitive_file_search(master_watershed_input_directory,
                                                                   weight_file_name)
-            """
+
             RAPID_Inflow_Tool.generateOutputInflowFile(out_nc=master_rapid_runoff_file,
                                                        in_weight_table=erai_weight_table_file,
                                                        tot_size_time=total_num_time_steps,
@@ -480,7 +480,7 @@ def run_lsm_rapid_process(rapid_executable_location,
                       chunksize=1)
             pool.close()
             pool.join()
-            """
+
             #run RAPID for the watershed
             lsm_rapid_output_file = os.path.join(master_watershed_output_directory,
                                                  'Qout_{0}'.format(out_file_ending))
