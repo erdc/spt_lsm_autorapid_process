@@ -7,32 +7,22 @@
 ##  Copyright © 2015-2016 Alan D Snow and Scott D. Christensen. All rights reserved.
 ##  License: BSD-3 Clause
 
+from datetime import datetime
 import netCDF4 as nc
 import numpy as np
 from RAPIDpy.dataset import RAPIDDataset
 
-def generate_return_periods(era_interim_file, return_period_file, num_years, step=7):
+def generate_return_periods(qout_file, return_period_file, storm_duration_days=7):
     """
-    Create warning points from era interim data and ECMWD prediction data
-
+    Generate return period from RAPID Qout file
     """
 
-    print "Extracting ERA Interim Data ..."
     #get ERA Interim Data Analyzed
-    with RAPIDDataset(era_interim_file) as qout_nc_file:
-        era_interim_comids = qout_nc_file.get_river_id_array()
-        comid_list_length = qout_nc_file.size_river_id
-        era_interim_lat_data = qout_nc_file.qout_nc.variables['lat'][:]
-        era_interim_lon_data = qout_nc_file.qout_nc.variables['lon'][:]
-
+    with RAPIDDataset(qout_file) as qout_nc_file:
         print "Setting up Return Periods File ..."
-
-        return_period_nc = nc.Dataset(return_period_file, 'w', format='NETCDF3_CLASSIC')
-
+        return_period_nc = nc.Dataset(return_period_file, 'w')
         
-        id_len = comid_list_length
-
-        return_period_nc.createDimension('rivid', id_len)
+        return_period_nc.createDimension('rivid', qout_nc_file.size_river_id)
 
         timeSeries_var = return_period_nc.createVariable('rivid', 'i4', ('rivid',))
         timeSeries_var.long_name = (
@@ -44,41 +34,47 @@ def generate_return_periods(era_interim_file, return_period_file, num_years, ste
         return_period_2_var = return_period_nc.createVariable('return_period_2', 'f8', ('rivid',))
 
         lat_var = return_period_nc.createVariable('lat', 'f8', ('rivid',),
-                                       fill_value=-9999.0)
+                                                  fill_value=-9999.0)
         lat_var.long_name = 'latitude'
         lat_var.standard_name = 'latitude'
         lat_var.units = 'degrees_north'
         lat_var.axis = 'Y'
 
         lon_var = return_period_nc.createVariable('lon', 'f8', ('rivid',),
-                                       fill_value=-9999.0)
+                                                  fill_value=-9999.0)
         lon_var.long_name = 'longitude'
         lon_var.standard_name = 'longitude'
         lon_var.units = 'degrees_east'
         lon_var.axis = 'X'
 
-        return_period_nc.variables['rivid'][:] = era_interim_comids
-        return_period_nc.variables['lat'][:] = era_interim_lat_data
-        return_period_nc.variables['lon'][:] = era_interim_lon_data
+        return_period_nc.variables['lat'][:] = qout_nc_file.qout_nc.variables['lat'][:]
+        return_period_nc.variables['lon'][:] = qout_nc_file.qout_nc.variables['lon'][:]
 
-        print "Generating Return Periods ..."
+        river_id_list = qout_nc_file.get_river_id_array()
+        return_period_nc.variables['rivid'][:] = river_id_list
 
-        for comid_index, comid in enumerate(era_interim_comids):
+        print "Extracting Data and Generating Return Periods ..."
+        time_array = qout_nc_file.get_time_array()
+        num_years = int((datetime.utcfromtimestamp(time_array[-1])-datetime.utcfromtimestamp(time_array[0])).days/365.2425)
+        time_steps_per_day = int((24*3600)/(datetime.utcfromtimestamp(time_array[1])-datetime.utcfromtimestamp(time_array[0])).seconds)
+        step = time_steps_per_day * storm_duration_days
+        
+        for comid_index, comid in enumerate(river_id_list):
 
-            era_flow_data = qout_nc_file.get_qout_index(comid_index)
-            filtered_era_flow_data = []
-            for step_index in range(0,len(era_flow_data),step):
-                flows_slice = era_flow_data[step_index:step_index + step]
-                filtered_era_flow_data.append(max(flows_slice))
-            sorted_era_flow_data = np.sort(filtered_era_flow_data)[:num_years:-1]
+            flow_data = qout_nc_file.get_qout_index(comid_index)
+            filtered_flow_data = []
+            for step_index in range(0,len(flow_data),step):
+                flows_slice = flow_data[step_index:step_index + step]
+                filtered_flow_data.append(max(flows_slice))
+            sorted_flow_data = np.sort(filtered_flow_data)[:num_years:-1]
 
-            rp_index_20 = round((num_years + 1)/20.0, 0)
-            rp_index_10 = round((num_years + 1)/10.0, 0)
-            rp_index_2 = round((num_years + 1)/2.0, 0)
+            rp_index_20 = int((num_years + 1)/20.0)
+            rp_index_10 = int((num_years + 1)/10.0)
+            rp_index_2 = int((num_years + 1)/2.0)
             
-            max_flow_var[comid_index] = sorted_era_flow_data[0]
-            return_period_20_var[comid_index] = sorted_era_flow_data[rp_index_20]
-            return_period_10_var[comid_index] = sorted_era_flow_data[rp_index_10]
-            return_period_2_var[comid_index] = sorted_era_flow_data[rp_index_2]
+            max_flow_var[comid_index] = sorted_flow_data[0]
+            return_period_20_var[comid_index] = sorted_flow_data[rp_index_20]
+            return_period_10_var[comid_index] = sorted_flow_data[rp_index_10]
+            return_period_2_var[comid_index] = sorted_flow_data[rp_index_2]
 
         return_period_nc.close()
