@@ -496,14 +496,6 @@ def run_lsm_rapid_process(rapid_executable_location,
                                             Qout_file=lsm_rapid_output_file
                                             )
                                             
-            try:
-                comid_lat_lon_z_file = case_insensitive_file_search(master_watershed_input_directory,
-                                                                    r'comid_lat_lon_z\.csv')
-            except Exception:
-                comid_lat_lon_z_file = ""
-                print "WARNING: comid_lat_lon_z file not found. These will not be added in conversion ..."
-                pass
-            
             rapid_manager.update_reach_number_data()
 
             if generate_rapid_namelist_file:
@@ -511,6 +503,14 @@ def run_lsm_rapid_process(rapid_executable_location,
                                                                   "rapid_namelist_{}".format(out_file_ending[:-3])))
             if run_rapid_simulation:
                 rapid_manager.run()
+
+                try:
+                    comid_lat_lon_z_file = case_insensitive_file_search(master_watershed_input_directory,
+                                                                        r'comid_lat_lon_z\.csv')
+                except Exception:
+                    comid_lat_lon_z_file = ""
+                    print "WARNING: comid_lat_lon_z file not found. These will not be added in conversion ..."
+                    pass
                 rapid_manager.make_output_CF_compliant(simulation_start_datetime=actual_simulation_start_datetime,
                                                        comid_lat_lon_z_file=comid_lat_lon_z_file,
                                                        project_name="{0} Based Historical flows by US Army ERDC".format(description))
