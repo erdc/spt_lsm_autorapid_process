@@ -210,12 +210,15 @@ class CreateInflowFileFromLDASRunoff(object):
                 data_subset_subsurface_new = data_subset_subsurface_runoff[index_new]
                 
                 #filter data
-                #Negative values should be zero
+                #set negative values to zero
                 data_subset_surface_new[data_subset_surface_new<0] = 0
                 data_subset_subsurface_new[data_subset_subsurface_new<0] = 0
-                #no Data in NLDAS is 1e20
-                data_subset_surface_new[data_subset_surface_new==1e20] = 0
-                data_subset_subsurface_new[data_subset_subsurface_new==1e20] = 0
+                #sent no data in NLDAS (1e20) to zero
+                #data_subset_surface_new[data_subset_surface_new==1e20] = 0
+                #data_subset_subsurface_new[data_subset_subsurface_new==1e20] = 0
+                #set extremely large values to zero
+                data_subset_surface_new[data_subset_surface_new>1000] = 0
+                data_subset_subsurface_new[data_subset_subsurface_new>1000] = 0
                 
                 #combine data
                 if data_subset_surface_all is None:
@@ -247,7 +250,7 @@ class CreateInflowFileFromLDASRunoff(object):
                         data_out_nc.variables['m3_riv'][index,stream_index] = 0
                     else:
                     	data_out_nc.variables['m3_riv'][index,stream_index] = ro_stream.sum()
-                except ValueError as ex:
+                except ValueError:
                     print "M3", len(data_out_nc.variables['m3_riv'][index,stream_index]), data_out_nc.variables['m3_riv'][index,stream_index]
                     print "RO", len(ro_stream.sum()), ro_stream.sum()
                     raise
