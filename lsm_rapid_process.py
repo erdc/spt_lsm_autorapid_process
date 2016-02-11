@@ -74,7 +74,12 @@ def run_lsm_rapid_process(rapid_executable_location,
                           download_era_interim=False,
                           ensemble_list=[None],
                           generate_return_periods_file=False,
+                          generate_seasonal_initialization_file=False,
+                          generate_initialization_file=False,
                           generate_rapid_namelist_file=True,
+                          run_rapid_simulation=True,
+                          use_all_processors=True,
+                          num_processors=1,
                           ftp_host="",
                           ftp_login="",
                           ftp_passwd="",
@@ -86,8 +91,15 @@ def run_lsm_rapid_process(rapid_executable_location,
     """
     time_begin_all = datetime.utcnow()
 
-    NUM_CPUS = multiprocessing.cpu_count()
-    
+    #use all processors makes precedent over num_processors arg
+    if use_all_processors == True:
+        NUM_CPUS = multiprocessing.cpu_count()
+    elif num_processors > multiprocessing.cpu_count():
+        print "WARNING: Num processors requested exceeded max. Set to max ..."
+        NUM_CPUS = multiprocessing.cpu_count()
+    else:
+        NUM_CPUS = num_processors
+
     #get list of correclty formatted rapid input directories in rapid directory
     rapid_input_directories = get_valid_watershed_list(os.path.join(rapid_io_files_location, 'input'))
 
@@ -312,7 +324,7 @@ def run_lsm_rapid_process(rapid_executable_location,
             #time units are in minutes
             if file_size_time == 1:
                 #time_step = 1*3600 #hourly
-		time_step = 3*3600 #3-hourly	
+                time_step = 3*3600 #3-hourly
             else:
                 lsm_example_file.close()
                 raise Exception("Unsupported LIS time step.")
@@ -379,12 +391,12 @@ def run_lsm_rapid_process(rapid_executable_location,
                 raise Exception("Unsupported runoff grid.")
 
             RAPID_Inflow_Tool = CreateInflowFileFromLDASRunoff(latitude_dim,
-                                                                   longitude_dim,
-                                                                   latitude_var,
-                                                                   longitude_var,
-                                                                   surface_runoff_var,
-                                                                   subsurface_runoff_var,
-                                                                   time_step)
+                                                               longitude_dim,
+                                                               latitude_var,
+                                                               longitude_var,
+                                                               surface_runoff_var,
+                                                               subsurface_runoff_var,
+                                                               time_step)
         else:
             lsm_example_file.close()
             raise Exception("Unsupported runoff grid.")
@@ -403,7 +415,7 @@ def run_lsm_rapid_process(rapid_executable_location,
         #set up RAPID manager
         rapid_manager = RAPID(rapid_executable_location=rapid_executable_location,
                               cygwin_bin_location=cygwin_bin_location,
-                              use_all_processors=True,                          
+                              num_processors=NUM_CPUS,
                               ZS_TauR=time_step, #duration of routing procedure (time step of runoff data)
                               ZS_dtR=15*60, #internal routing time step
                               ZS_TauM=total_num_time_steps*time_step, #total simulation time 
@@ -431,12 +443,11 @@ def run_lsm_rapid_process(rapid_executable_location,
             
             erai_weight_table_file = case_insensitive_file_search(master_watershed_input_directory,
                                                                   weight_file_name)
-
+            """
             RAPID_Inflow_Tool.generateOutputInflowFile(out_nc=master_rapid_runoff_file,
                                                        in_weight_table=erai_weight_table_file,
                                                        tot_size_time=total_num_time_steps,
                                                        )
-    
             job_combinations = []
             if grid_type == 'nldas' or grid_type == 'lis' or grid_type == 'joules':
                 print "Grouping {0} in threes".format(grid_type)
@@ -462,14 +473,14 @@ def run_lsm_rapid_process(rapid_executable_location,
                 #                              grid_type,
                 #                              master_rapid_runoff_file,
                 #                              RAPID_Inflow_Tool))
-            pool = multiprocessing.Pool()
+            pool = multiprocessing.Pool(NUM_CPUS)
             #chunksize=1 makes it so there is only one task per cpu
             pool.imap(generate_inflows_from_runoff,
                       job_combinations,
                       chunksize=1)
             pool.close()
             pool.join()
-
+            """
             #run RAPID for the watershed
             lsm_rapid_output_file = os.path.join(master_watershed_output_directory,
                                                  'Qout_{0}'.format(out_file_ending))
@@ -492,23 +503,33 @@ def run_lsm_rapid_process(rapid_executable_location,
             if generate_rapid_namelist_file:
                 rapid_manager.generate_namelist_file(os.path.join(master_watershed_input_directory,
                                                                   "rapid_namelist_{}".format(out_file_ending[:-3])))
-
-            rapid_manager.run()
-            rapid_manager.make_output_CF_compliant(simulation_start_datetime=actual_simulation_start_datetime,
-                                                   comid_lat_lon_z_file=comid_lat_lon_z_file,
-                                                   project_name="{0} Based Historical flows by US Army ERDC".format(description))
+            if run_rapid_simulation:
+                rapid_manager.run()
+                rapid_manager.make_output_CF_compliant(simulation_start_datetime=actual_simulation_start_datetime,
+                                                       comid_lat_lon_z_file=comid_lat_lon_z_file,
+                                                       project_name="{0} Based Historical flows by US Army ERDC".format(description))
 
             #generate return periods
-            if generate_return_periods_file:
+            if generate_return_periods_file and os.path.exists(lsm_rapid_output_file) and lsm_rapid_output_file:
                 return_periods_file = os.path.join(master_watershed_output_directory,
                                                    'return_periods_{0}'.format(out_file_ending))
                 #assume storm has 3 day length
-                storm_time_step_length = int(3*24*3600/time_step)
+                storm_length_days = int(3*24*3600/time_step)
                 generate_return_periods(lsm_rapid_output_file,
                                         return_periods_file,
-                                        int(len(lsm_file_list)/365),
-                                        storm_time_step_length)
+                                        storm_length_days)
                     
+            if generate_seasonal_initialization_file and os.path.exists(lsm_rapid_output_file) and lsm_rapid_output_file:
+                seasonal_qinit_file = os.path.join(master_watershed_input_directory,
+                                                   'seasonal_qinit_{0}.csv'.format(out_file_ending[:-3]))
+                rapid_manager.generate_seasonal_intitialization(seasonal_qinit_file)
+
+            if generate_initialization_file and os.path.exists(lsm_rapid_output_file) and lsm_rapid_output_file:
+                qinit_file = os.path.join(master_watershed_input_directory,
+                                          'qinit_{0}.csv'.format(out_file_ending[:-3]))
+                rapid_manager.generate_qinit_from_past_qout(qinit_file)
+
+
     #print info to user
     time_end = datetime.utcnow()
     print "Time Begin All: " + str(time_begin_all)
