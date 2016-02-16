@@ -126,7 +126,7 @@ class CreateInflowFileFromLDASRunoff(object):
 
         index_new = []
         conversion_factor = None
-        
+        fill_value = None
         
         # start compute inflow
         data_out_nc = NET.Dataset(out_nc, "a", format = "NETCDF3_CLASSIC")
@@ -171,6 +171,25 @@ class CreateInflowFileFromLDASRunoff(object):
                     data_in_nc.close()
                     raise Exception("Surface and subsurface lon lengths do not agree ...")
 
+                if conversion_factor == None: 
+                    #get conversion_factor
+                    conversion_factor = 1.0/1000 #convert from kg/m^2 (i.e. mm) to m
+                    if "s" in data_in_nc.variables[self.vars_oi[2]].getncattr("units"):
+                        #that means kg/m^2/s in GLDAS v1 that is 3-hr avg, so multiply
+                        #by 3 hr (ex. 3*3600). Assumed same for others (ex. 1*3600).
+                        #ftp://hydro1.sci.gsfc.nasa.gov/data/s4pa/GLDAS_V1/README.GLDAS.pdf
+                        #If combining files, need to take average of these, so divide by number of files
+                        conversion_factor *= self.time_step_seconds/len(nc_file_array)
+
+                if fill_value == None:
+                    try:
+                        fill_value = data_in_nc.variables[self.vars_oi[2]].getncattr("_FillValue")
+                    except Exception:
+                        fill_value = None
+                        pass
+                    
+                data_in_nc.close()
+
                 #reshape the runoff
                 data_subset_surface_runoff = data_subset_surface_runoff.reshape(len_lat_subset_surface * len_lon_subset_surface)
                 data_subset_subsurface_runoff = data_subset_subsurface_runoff.reshape(len_lat_subset_subsurface * len_lon_subset_subsurface)
@@ -181,16 +200,6 @@ class CreateInflowFileFromLDASRunoff(object):
                         ind_lat_orig = lat_ind_all[r]
                         ind_lon_orig = lon_ind_all[r]
                         index_new.append((ind_lat_orig - min_lat_ind_all)*len_lon_subset_surface + (ind_lon_orig - min_lon_ind_all))
-                if conversion_factor == None: 
-                    #get conversion_factor
-                    conversion_factor = 1.0/1000 #convert from kg/m^2 (i.e. mm) to m
-                    if "s" in data_in_nc.variables[self.vars_oi[2]].getncattr("units"):
-                        #that means kg/m^2/s in GLDAS v1 that is 3-hr avg, so multiply
-                        #by 3 hr (ex. 3*3600). Assumed same for others (ex. 1*3600).
-                        #ftp://hydro1.sci.gsfc.nasa.gov/data/s4pa/GLDAS_V1/README.GLDAS.pdf
-			#If combining files, need to take average of these, so divide by number of files
-                        conversion_factor *= self.time_step_seconds/len(nc_file_array)
-                data_in_nc.close()
 
                 #obtain a new subset of data
                 data_subset_surface_new = data_subset_surface_runoff[index_new]
@@ -201,11 +210,13 @@ class CreateInflowFileFromLDASRunoff(object):
                 data_subset_surface_new[data_subset_surface_new<0] = 0
                 data_subset_subsurface_new[data_subset_subsurface_new<0] = 0
                 #sent no data in NLDAS (1e20) to zero
-                #data_subset_surface_new[data_subset_surface_new==1e20] = 0
-                #data_subset_subsurface_new[data_subset_subsurface_new==1e20] = 0
-                #set extremely large values to zero
-                data_subset_surface_new[data_subset_surface_new>1000] = 0
-                data_subset_subsurface_new[data_subset_subsurface_new>1000] = 0
+                if fill_value != None:
+                    data_subset_surface_new[data_subset_surface_new==fill_value] = 0
+                    data_subset_subsurface_new[data_subset_subsurface_new==fill_value] = 0
+
+                #set extremely large values to zero (1m)
+                #data_subset_surface_new[data_subset_surface_new>1000] = 0
+                #data_subset_subsurface_new[data_subset_subsurface_new>1000] = 0
                 
                 #combine data
                 if data_subset_surface_all is None:
