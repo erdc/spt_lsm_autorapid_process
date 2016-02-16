@@ -430,7 +430,8 @@ def run_lsm_rapid_process(rapid_executable_location,
                 weight_file_name = r'weight_wrf\.csv'
                 grid_type = 'wrf_hydro'
                 time_step = 1*3600 #1 hourly
-                
+                total_num_time_steps=file_size_time*len(lsm_file_list)
+
                 RAPID_Inflow_Tool = CreateInflowFileFromWRFHydroRunoff(latitude_dim,
                                                                        longitude_dim,
                                                                        latitude_var,
@@ -459,7 +460,7 @@ def run_lsm_rapid_process(rapid_executable_location,
                               num_processors=NUM_CPUS,
                               ZS_TauR=time_step, #duration of routing procedure (time step of runoff data)
                               ZS_dtR=15*60, #internal routing time step
-                              ZS_TauM=total_num_time_steps*time_step, #total simulation time 
+                              ZS_TauM=total_num_time_steps*time_step, #total simulation time
                               ZS_dtM=time_step #RAPID recommended internal time step (1 day)
                              )
     
