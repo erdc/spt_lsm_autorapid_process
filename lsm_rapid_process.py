@@ -17,6 +17,7 @@ import re
 #local imports
 from imports.CreateInflowFileFromERAInterimRunoff import CreateInflowFileFromERAInterimRunoff
 from imports.CreateInflowFileFromLDASRunoff import CreateInflowFileFromLDASRunoff
+from imports.CreateInflowFileFromWRFHydroRunoff import CreateInflowFileFromWRFHydroRunoff
 from imports.generate_return_periods import generate_return_periods
 from imports.helper_functions import (case_insensitive_file_search,
                                       get_valid_watershed_list,
@@ -35,7 +36,7 @@ def generate_inflows_from_runoff(args):
     subbasin = args[1]
     runoff_file_list = args[2]
     file_index_list = args[3]
-    erai_weight_table_file = args[4]
+    weight_table_file = args[4]
     grid_type = args[5]
     rapid_inflow_file = args[6]
     RAPID_Inflow_Tool = args[7]
@@ -55,7 +56,7 @@ def generate_inflows_from_runoff(args):
     print "Converting inflow"
     RAPID_Inflow_Tool.execute(nc_file_list=runoff_file_list,
                               index_list=file_index_list,
-                              in_weight_table=erai_weight_table_file,
+                              in_weight_table=weight_table_file,
                               out_nc=rapid_inflow_file,
                               grid_type=grid_type,
                               )
@@ -150,6 +151,9 @@ def run_lsm_rapid_process(rapid_executable_location,
         elif 'north_south' in dim_list:
             #LIS/Joules
             latitude_dim = 'north_south'
+        elif 'south_north' in dim_list:
+            #WRF Hydro
+            latitude_dim = 'south_north'
         
         longitude_dim = "lon"
         if 'longitude' in dim_list:
@@ -163,7 +167,10 @@ def run_lsm_rapid_process(rapid_executable_location,
         elif 'east_west' in dim_list:
             #LIS/Joules
             longitude_dim = 'east_west'
-        
+        elif 'west_east' in dim_list:
+            #WRF Hydro
+            longitude_dim = 'west_east'
+
         lat_dim_size = len(lsm_example_file.dimensions[latitude_dim])
         lon_dim_size = len(lsm_example_file.dimensions[longitude_dim])
 
@@ -179,6 +186,8 @@ def run_lsm_rapid_process(rapid_executable_location,
             latitude_var = 'lat_110'
         elif 'north_south' in var_list:
             latitude_var = 'north_south'
+        elif 'XLAT' in var_list:
+            latitude_var = 'XLAT'
     
         longitude_var="lon"
         if 'longitude' in var_list:
@@ -189,6 +198,8 @@ def run_lsm_rapid_process(rapid_executable_location,
             longitude_var = 'lon_110'
         elif 'east_west' in var_list:
             longitude_var = 'east_west'
+        elif 'XLONG' in var_list:
+            longitude_var = 'XLONG'
 
         surface_runoff_var=""
         subsurface_runoff_var=""
@@ -205,6 +216,12 @@ def run_lsm_rapid_process(rapid_executable_location,
             elif var == "Qsb_inst":
                 #LIS
                 subsurface_runoff_var = var
+            elif var == "SFROFF":
+                #WRF Hydro
+                surface_runoff_var = var
+            elif var == "UDROFF":
+                #WRF Hydro
+                subsurface_runoff_var = var
             elif var.lower() == "ro":
                 #ERA Interim
                 surface_runoff_var = var
@@ -212,8 +229,12 @@ def run_lsm_rapid_process(rapid_executable_location,
 
 
         #IDENTIFY GRID TYPE & TIME STEP
+
         try:
-            file_size_time = len(lsm_example_file.variables['time'][:])
+            time_dim = "time"
+            if "Time" in lsm_example_file.dimensions:
+                time_dim = "Time"
+            file_size_time = len(lsm_example_file.dimensions[time_dim])
         except Exception as ex:
             print "ERROR:", ex
             print "Assuming time dimension is 1"
@@ -398,8 +419,28 @@ def run_lsm_rapid_process(rapid_executable_location,
                                                                subsurface_runoff_var,
                                                                time_step)
         else:
-            lsm_example_file.close()
-            raise Exception("Unsupported runoff grid.")
+            title = ""
+            try:
+                title = lsm_example_file.getncattr("TITLE")
+            except AttributeError:
+                pass
+
+            if "WRF" in title:
+                description = "WRF-Hydro Hourly Runoff"
+                weight_file_name = r'weight_wrf\.csv'
+                grid_type = 'wrf_hydro'
+                time_step = 1*3600 #1 hourly
+                
+                RAPID_Inflow_Tool = CreateInflowFileFromWRFHydroRunoff(latitude_dim,
+                                                                       longitude_dim,
+                                                                       latitude_var,
+                                                                       longitude_var,
+                                                                       surface_runoff_var,
+                                                                       subsurface_runoff_var,
+                                                                       time_step)
+            else:
+                lsm_example_file.close()
+                raise Exception("Unsupported runoff grid.")
         
         lsm_example_file.close()
 
@@ -441,11 +482,11 @@ def run_lsm_rapid_process(rapid_executable_location,
             master_rapid_runoff_file = os.path.join(master_watershed_output_directory, 
                                                     'm3_riv_bas_{0}'.format(out_file_ending))
             
-            erai_weight_table_file = case_insensitive_file_search(master_watershed_input_directory,
-                                                                  weight_file_name)
+            weight_table_file = case_insensitive_file_search(master_watershed_input_directory,
+                                                             weight_file_name)
 
             RAPID_Inflow_Tool.generateOutputInflowFile(out_nc=master_rapid_runoff_file,
-                                                       in_weight_table=erai_weight_table_file,
+                                                       in_weight_table=weight_table_file,
                                                        tot_size_time=total_num_time_steps,
                                                        )
             job_combinations = []
@@ -460,19 +501,19 @@ def run_lsm_rapid_process(rapid_executable_location,
                                          subbasin.lower(),
                                          cpu_grouped_file_list,
                                          partition_index_list[loop_index],
-                                         erai_weight_table_file,
+                                         weight_table_file,
                                          grid_type,
                                          master_rapid_runoff_file,
                                          RAPID_Inflow_Tool))
                 #COMMENTED CODE IS FOR DEBUGGING
-                #generate_inflows_from_runoff((watershed.lower(),
-                #                              subbasin.lower(),
-                #                              cpu_grouped_file_list,
-                #                              partition_index_list[loop_index],
-                #                              erai_weight_table_file,
-                #                              grid_type,
-                #                              master_rapid_runoff_file,
-                #                              RAPID_Inflow_Tool))
+##                generate_inflows_from_runoff((watershed.lower(),
+##                                              subbasin.lower(),
+##                                              cpu_grouped_file_list,
+##                                              partition_index_list[loop_index],
+##                                              weight_table_file,
+##                                              grid_type,
+##                                              master_rapid_runoff_file,
+##                                              RAPID_Inflow_Tool))
             pool = multiprocessing.Pool(NUM_CPUS)
             #chunksize=1 makes it so there is only one task per cpu
             pool.imap(generate_inflows_from_runoff,
