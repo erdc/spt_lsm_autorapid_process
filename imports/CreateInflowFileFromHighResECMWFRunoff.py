@@ -21,7 +21,7 @@ class CreateInflowFileFromHighResECMWFRunoff(object):
                             "based on ECMWF high resoulution runoff results "
                             "and previously created weight table.")
         self.canRunInBackground = False
-        self.header_wt = ['StreamID', 'area_sqm', 'lon_index', 'lat_index', 'npoints', 'weight', 'Lon', 'Lat']
+        self.header_wt = ['StreamID', 'area_sqm', 'lon_index', 'lat_index', 'npoints']
         self.dims_oi = ['lon', 'lat', 'time']
         self.vars_oi = ["lon", "lat", "time", "RO"]
         self.length_time = {"HighRes": 125}
@@ -69,8 +69,7 @@ class CreateInflowFileFromHighResECMWFRunoff(object):
         ''' Read the weight table '''
         print "Reading the weight table..."
         dict_list = {self.header_wt[0]:[], self.header_wt[1]:[], self.header_wt[2]:[],
-                     self.header_wt[3]:[], self.header_wt[4]:[], self.header_wt[5]:[],
-                     self.header_wt[6]:[], self.header_wt[7]:[]}
+                     self.header_wt[3]:[], self.header_wt[4]:[]}
         streamID = ""
         with open(in_weight_table, "rb") as csvfile:
             reader = csv.reader(csvfile)
@@ -78,15 +77,15 @@ class CreateInflowFileFromHighResECMWFRunoff(object):
             for row in reader:
                 if count == 0:
                     #check number of columns in the weight table
-                    if len(row) != len(self.header_wt):
+                    if len(row) < len(self.header_wt):
                         raise Exception(self.errorMessages[4])
                     #check header
-                    if row[1:len(self.header_wt)] != self.header_wt[1:len(self.header_wt)]:
+                    if row[1:len(self.header_wt)] != self.header_wt[1:]:
                         raise Exception(self.errorMessages[5])
                     streamID = row[0]
                     count += 1
                 else:
-                    for i in range(0,8):
+                    for i in xrange(5):
                        dict_list[self.header_wt[i]].append(row[i])
                     count += 1
 
@@ -97,7 +96,7 @@ class CreateInflowFileFromHighResECMWFRunoff(object):
         # data_out_nc = NET.Dataset(out_nc, "w") # by default format = "NETCDF4"
         data_out_nc = NET.Dataset(out_nc, "w", format = "NETCDF3_CLASSIC")
         dim_Time = data_out_nc.createDimension('Time', size_time)
-        dim_RiverID = data_out_nc.createDimension(streamID, size_streamID)
+        dim_RiverID = data_out_nc.createDimension('rivid', size_streamID)
         var_m3_riv = data_out_nc.createVariable('m3_riv', 'f4', ('Time', streamID))
         data_temp = NUM.empty(shape = [size_time, size_streamID])
 

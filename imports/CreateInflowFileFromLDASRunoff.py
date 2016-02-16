@@ -21,7 +21,7 @@ class CreateInflowFileFromLDASRunoff(object):
                        subsurface_runoff_var="Qsb_GDS0_SFC_ave1h",
                        time_step_seconds=3*3600):
         """Define the attributes to look for"""
-        self.header_wt = ['StreamID', 'area_sqm', 'lon_index', 'lat_index', 'npoints', 'weight', lon_var, lat_var]
+        self.header_wt = ['StreamID', 'area_sqm', 'lon_index', 'lat_index', 'npoints']
         self.dims_oi = [lon_dim, lat_dim]
         self.vars_oi = [lon_var, lat_var, surface_runoff_var, subsurface_runoff_var]
         self.length_time = {"Hourly": 1}
@@ -53,18 +53,6 @@ class CreateInflowFileFromLDASRunoff(object):
         return
 
 
-    def dataIdentify(self, in_nc, vars_oi_index):
-        """Check if the data is hourly (one value)"""
-        """
-        data_nc = NET.Dataset(in_nc)
-        name_time = self.vars_oi[2]
-        time = data_nc.variables[name_time][:]
-        if len(time) == 1:
-            return
-        raise Exception(self.errorMessages[3])
-        """
-        return
-        
     def readInWeightTable(self, in_weight_table):
         """
         Read in weight table
@@ -72,8 +60,7 @@ class CreateInflowFileFromLDASRunoff(object):
         
         print "Reading the weight table..."
         self.dict_list = {self.header_wt[0]:[], self.header_wt[1]:[], self.header_wt[2]:[],
-                          self.header_wt[3]:[], self.header_wt[4]:[], self.header_wt[5]:[],
-                          self.header_wt[6]:[], self.header_wt[7]:[]}
+                          self.header_wt[3]:[], self.header_wt[4]:[]}
                      
         with open(in_weight_table, "rb") as csvfile:
             reader = csv.reader(csvfile)
@@ -81,14 +68,14 @@ class CreateInflowFileFromLDASRunoff(object):
             for row in reader:
                 if self.count == 0:
                     #check number of columns in the weight table
-                    if len(row) != len(self.header_wt):
+                    if len(row) < len(self.dict_list):
                         raise Exception(self.errorMessages[4])
-                    #check header (Skipped checking last two cols becase they may be different)
-                    if row[1:len(self.header_wt)-2] != self.header_wt[1:len(self.header_wt)-2]:
+                    #check header
+                    if row[1:len(self.header_wt)] != self.header_wt[1:]:
                         raise Exception(self.errorMessages[5])
                     self.count += 1
                 else:
-                    for i in range(0,8):
+                    for i in xrange(len(self.header_wt)):
                        self.dict_list[self.header_wt[i]].append(row[i])
                     self.count += 1
 
@@ -232,7 +219,7 @@ class CreateInflowFileFromLDASRunoff(object):
                     data_subset_subsurface_all = NUM.add(data_subset_subsurface_all, data_subset_subsurface_new)
 
             pointer = 0
-            for stream_index in range(self.size_streamID):
+            for stream_index in xrange(self.size_streamID):
                 npoints = int(self.dict_list[self.header_wt[4]][pointer])
                 # Check if all npoints points correspond to the same streamID
                 if len(set(self.dict_list[self.header_wt[0]][pointer : (pointer + npoints)])) != 1:
