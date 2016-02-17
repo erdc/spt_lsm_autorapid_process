@@ -203,8 +203,8 @@ class CreateInflowFileFromLDASRunoff(object):
                 data_subset_surface_new[data_subset_surface_new<0] = 0
                 data_subset_subsurface_new[data_subset_subsurface_new<0] = 0
                 #set masked values to zero
-                data_subset_surface_new[NUM.ma.getmask(data_subset_surface_new)] = 0
-                data_subset_subsurface_new[NUM.ma.getmask(data_subset_subsurface_new)] = 0
+                data_subset_surface_new = data_subset_surface_new.filled(fill_value=0)
+                data_subset_subsurface_new = data_subset_subsurface_new.filled(fill_value=0)
 
                 #combine data
                 if data_subset_surface_all is None:
