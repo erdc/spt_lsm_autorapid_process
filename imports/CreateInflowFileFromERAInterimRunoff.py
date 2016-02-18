@@ -168,6 +168,7 @@ class CreateInflowFileFromERAInterimRunoff(object):
 
             data_subset_all = data_in_nc.variables[self.vars_oi[vars_oi_index][3]][:, min_lat_ind_all:max_lat_ind_all+1, min_lon_ind_all:max_lon_ind_all+1]
             data_in_nc.close()
+            
             len_time_subset_all = data_subset_all.shape[0]
             len_lat_subset_all = data_subset_all.shape[1]
             len_lon_subset_all = data_subset_all.shape[2]
@@ -183,9 +184,10 @@ class CreateInflowFileFromERAInterimRunoff(object):
 
             # obtain a new subset of data
             data_subset_new = data_subset_all[:,index_new]
+
             # start compute inflow
             pointer = 0
-            for stream_index in range(self.size_streamID):
+            for stream_index in xrange(self.size_streamID):
                 npoints = int(self.dict_list[self.header_wt[4]][pointer])
                 # Check if all npoints points correspond to the same streamID
                 if len(set(self.dict_list[self.header_wt[0]][pointer : (pointer + npoints)])) != 1:
@@ -197,25 +199,22 @@ class CreateInflowFileFromERAInterimRunoff(object):
                 area_sqm_npoints = NUM.array(area_sqm_npoints)
                 area_sqm_npoints = area_sqm_npoints.reshape(1, npoints)
                 data_goal = data_subset_new[:, pointer:(pointer + npoints)]
-                if id_data == "Daily":
+
+                if grid_type == 't255':
+                    #A) ERA Interim Low Res (T255) - data is cumulative
+                    data_goal = data_goal.astype(NUM.float32)
+                    #from time 3/6/9/12 (time zero not included, so assumed to be zero)
+                    ro_first_half = NUM.concatenate([data_goal[0:1,], NUM.subtract(data_goal[1:4,], data_goal[0:3,])])
+                    #from time 15/18/21/24 (time restarts at time 12, assumed to be zero)
+                    ro_second_half = NUM.concatenate([data_goal[4:5,], NUM.subtract(data_goal[5:,], data_goal[4:7,])])
+                    ro_stream = NUM.concatenate([ro_first_half, ro_second_half]) * area_sqm_npoints
+                else:
+                    #A) ERA Interim High Res (T511) - data is incremental
+                    #from time 3/6/9/12/15/18/21/24
                     ro_stream = data_goal * area_sqm_npoints
-                    data_out_nc.variables['m3_riv'][index,stream_index] = ro_stream.sum(axis = 1)
-                else: #id_data == "3-Hourly
-                    if grid_type == 't255':
-                        #A) ERA Interim Low Res (T255) - data is cumulative
-                        data_goal = data_goal.astype(NUM.float32)
-                        #from time 3/6/9/12 (time zero not included, so assumed to be zero)
-                        ro_first_half = NUM.concatenate([data_goal[0:1,], NUM.subtract(data_goal[1:4,], data_goal[0:3,])])
-                        #from time 15/18/21/24 (time restarts at time 12, assumed to be zero)
-                        ro_second_half = NUM.concatenate([data_goal[4:5,], NUM.subtract(data_goal[5:,], data_goal[4:7,])])
-                        ro_stream = NUM.concatenate([ro_first_half, ro_second_half]) * area_sqm_npoints
-                    else:
-                        #from time 3/6/9/12/15/18/21/24 (data is incremental)
-                        ro_stream = data_goal * area_sqm_npoints
 
-                    data_out_nc.variables['m3_riv'][index*size_time:(index+1)*size_time,stream_index] = ro_stream.sum(axis = 1)
-                                    
+                data_out_nc.variables['m3_riv'][index*size_time:(index+1)*size_time,stream_index] = ro_stream.sum(axis = 1)
+            
                 pointer += npoints
-
         # close the input and output netcdf datasets
         data_out_nc.close()
