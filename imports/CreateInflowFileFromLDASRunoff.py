@@ -173,7 +173,7 @@ class CreateInflowFileFromLDASRunoff(object):
 
                 if conversion_factor == None: 
                     #get conversion_factor
-                    conversion_factor = 1.0/1000 #convert from kg/m^2 (i.e. mm) to m
+                    conversion_factor = 0.001 #convert from kg/m^2 (i.e. mm) to m
                     if "s" in data_in_nc.variables[self.vars_oi[2]].getncattr("units"):
                         #that means kg/m^2/s in GLDAS v1 that is 3-hr avg, so multiply
                         #by 3 hr (ex. 3*3600). Assumed same for others (ex. 1*3600).
@@ -181,13 +181,6 @@ class CreateInflowFileFromLDASRunoff(object):
                         #If combining files, need to take average of these, so divide by number of files
                         conversion_factor *= self.time_step_seconds/len(nc_file_array)
 
-                if fill_value == None:
-                    try:
-                        fill_value = data_in_nc.variables[self.vars_oi[2]].getncattr("_FillValue")
-                    except Exception:
-                        fill_value = None
-                        pass
-                    
                 data_in_nc.close()
 
                 #reshape the runoff
@@ -205,19 +198,14 @@ class CreateInflowFileFromLDASRunoff(object):
                 data_subset_surface_new = data_subset_surface_runoff[index_new]
                 data_subset_subsurface_new = data_subset_subsurface_runoff[index_new]
                 
-                #filter data
+                #FILTER DATA
                 #set negative values to zero
                 data_subset_surface_new[data_subset_surface_new<0] = 0
                 data_subset_subsurface_new[data_subset_subsurface_new<0] = 0
-                #sent no data in NLDAS (1e20) to zero
-                if fill_value != None:
-                    data_subset_surface_new[data_subset_surface_new==fill_value] = 0
-                    data_subset_subsurface_new[data_subset_subsurface_new==fill_value] = 0
+                #set masked values to zero
+                data_subset_surface_new = data_subset_surface_new.filled(fill_value=0)
+                data_subset_subsurface_new = data_subset_subsurface_new.filled(fill_value=0)
 
-                #set extremely large values to zero (1m)
-                #data_subset_surface_new[data_subset_surface_new>1000] = 0
-                #data_subset_subsurface_new[data_subset_subsurface_new>1000] = 0
-                
                 #combine data
                 if data_subset_surface_all is None:
                     data_subset_surface_all = data_subset_surface_new
@@ -242,17 +230,14 @@ class CreateInflowFileFromLDASRunoff(object):
                 data_goal_surface = data_subset_surface_all[pointer:(pointer + npoints)]
                 data_goal_subsurface = data_subset_subsurface_all[pointer:(pointer + npoints)]
                 ro_stream = NUM.add(data_goal_surface, data_goal_subsurface) * area_sqm_npoints * conversion_factor
-                try:
-                    #ignore masked values
-                    if ro_stream.sum() is NUM.ma.masked:
-                        data_out_nc.variables['m3_riv'][index,stream_index] = 0
-                    else:
-                    	data_out_nc.variables['m3_riv'][index,stream_index] = ro_stream.sum()
-                except ValueError:
-                    print "M3", len(data_out_nc.variables['m3_riv'][index,stream_index]), data_out_nc.variables['m3_riv'][index,stream_index]
-                    print "RO", len(ro_stream.sum()), ro_stream.sum()
-                    raise
-                                    
+                #filter nan
+                ro_stream = ro_stream[~NUM.isnan(ro_stream)]
+
+                if ro_stream.any():
+                    data_out_nc.variables['m3_riv'][index,stream_index] = ro_stream.sum()
+                else:
+                    data_out_nc.variables['m3_riv'][index,stream_index] = 0
+                
                 pointer += npoints
 
         # close the output netcdf dataset
