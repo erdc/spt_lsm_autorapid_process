@@ -31,10 +31,11 @@ from AutoRoutePy.post_process import get_shapefile_layergroup_bounds, rename_sha
 # MAIN PROCESS
 #----------------------------------------------------------------------------------------
 def run_autorapid_process(autoroute_executable_location, #location of AutoRoute executable
-                          autoroute_io_files_location, #path to AutoRoute input/outpuf directory
-                          rapid_io_files_location, #path to AutoRoute input/outpuf directory
-                          condor_log_directory,
+                          autoroute_io_files_location, #path to AutoRoute input/output directory
+                          rapid_io_files_location, #path to AutoRoute input/output directory
                           return_period_list=['return_period_20', 'return_period_10', 'return_period_2'],
+                          delete_flood_raster=True,
+                          generate_floodmap_shapefile=True,
                           geoserver_url='',
                           geoserver_username='',
                           geoserver_password='',
@@ -43,7 +44,7 @@ def run_autorapid_process(autoroute_executable_location, #location of AutoRoute 
     """
     This it the main AutoRoute-RAPID process
     """
-    valid_return_period_list = ['return_period_20', 'return_period_10', 'return_period_2']
+    valid_return_period_list = ['max_flow', 'return_period_20', 'return_period_10', 'return_period_2']
 
     #validate return period list
     for return_period in return_period_list:
@@ -56,13 +57,6 @@ def run_autorapid_process(autoroute_executable_location, #location of AutoRoute 
     autoroute_input_directories = get_valid_watershed_list(autoroute_input_folder)
 
     for return_period in return_period_list:
-        #initialize HTCondor Directory
-        condor_init_dir = os.path.join(condor_log_directory, return_period)
-        try:
-            os.makedirs(condor_init_dir)
-        except OSError:
-            pass
-    
         print "Running AutoRoute process for:", return_period
         #run autorapid for each watershed
         autoroute_watershed_jobs = {}
@@ -97,14 +91,13 @@ def run_autorapid_process(autoroute_executable_location, #location of AutoRoute 
                                                                                           return_period=return_period, # return period name in return period file
                                                                                           return_period_file=return_period_file, # return period file generated from RAPID historical run
                                                                                           mode="multiprocess", #multiprocess or htcondor
-                                                                                          condor_log_directory=condor_init_dir,
-                                                                                          #delete_flood_raster=True, #delete flood raster generated
-                                                                                          #generate_floodmap_shapefile=True, #generate a flood map shapefile
+                                                                                          delete_flood_raster=delete_flood_raster, #delete flood raster generated
+                                                                                          generate_floodmap_shapefile=generate_floodmap_shapefile, #generate a flood map shapefile
                                                                                           wait_for_all_processes_to_finish=False
                                                                                           )
     geoserver_manager = None
     if GEOSERVER_ENABLED and geoserver_url and geoserver_username \
-        and geoserver_password and app_instance_id:
+        and geoserver_password and app_instance_id and generate_floodmap_shapefile:
         try:
             geoserver_manager = GeoServerDatasetManager(geoserver_url, 
                                                         geoserver_username, 
@@ -115,6 +108,8 @@ def run_autorapid_process(autoroute_executable_location, #location of AutoRoute 
             print "Skipping geoserver upload ..."
             geoserver_manager = None
             pass
+    else:
+        print "GeoServer parameters incomplete. Skipping upload ..."
         
     #wait for jobs to finish by watershed
     for autoroute_watershed_directory, autoroute_watershed_job in autoroute_watershed_jobs.iteritems():
@@ -127,21 +122,19 @@ def run_autorapid_process(autoroute_executable_location, #location of AutoRoute 
         geoserver_resource_list = []
         upload_shapefile_list = []
         for job_index, job_output in enumerate(autoroute_watershed_job['multiprocess_worker_list']):
-
-            #time stamped layer name
-            geoserver_resource_name = "%s-%s" % (geoserver_layer_group_name,
-                                                 job_index)
-            #upload each shapefile
-            upload_shapefile = os.path.join(master_watershed_autoroute_output_directory, 
-                                            "%s%s" % (geoserver_resource_name, ".shp"))
-                                            
-            #rename files
-            rename_shapefiles(master_watershed_autoroute_output_directory, 
-                              os.path.splitext(upload_shapefile)[0], 
-                              os.path.splitext(os.path.basename(job_output[1]))[0])
-
             #upload to GeoServer
-            if geoserver_manager:
+            if geoserver_manager and job_output[1]:
+                #time stamped layer name
+                geoserver_resource_name = "%s-%s" % (geoserver_layer_group_name,
+                                                     job_index)
+                #upload each shapefile
+                upload_shapefile = os.path.join(master_watershed_autoroute_output_directory, 
+                                                "%s%s" % (geoserver_resource_name, ".shp"))
+                #rename files
+                rename_shapefiles(master_watershed_autoroute_output_directory, 
+                                  os.path.splitext(upload_shapefile)[0], 
+                                  os.path.splitext(os.path.basename(job_output[1]))[0])
+                                  
                 if os.path.exists(upload_shapefile):
                     upload_shapefile_list.append(upload_shapefile)
                     print "Uploading", upload_shapefile, "to GeoServer as", geoserver_resource_name
@@ -212,6 +205,7 @@ if __name__ == "__main__":
     run_autorapid_process(autoroute_executable_location='/home/alan/work/scripts/AutoRoute/source_code/autoroute',
                           autoroute_io_files_location='/home/alan/work/autoroute-io',
                           rapid_io_files_location='/home/alan/work/rapid-io',
-                          condor_log_directory='/home/alan/work/condor',
-                          return_period_list=['return_period_20']
+                          return_period_list=['max_flow'],
+                          delete_flood_raster=True,
+                          generate_floodmap_shapefile=True,
                           )
