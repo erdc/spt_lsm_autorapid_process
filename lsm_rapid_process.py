@@ -562,7 +562,7 @@ def run_lsm_rapid_process(rapid_executable_location,
                 return_periods_file = os.path.join(master_watershed_output_directory,
                                                    'return_periods_{0}'.format(out_file_ending))
                 #assume storm has 3 day length
-                storm_length_days = int(3*24*3600/time_step)
+                storm_length_days = 3
                 generate_return_periods(lsm_rapid_output_file,
                                         return_periods_file,
                                         storm_length_days)

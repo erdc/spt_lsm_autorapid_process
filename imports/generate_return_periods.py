@@ -58,13 +58,14 @@ def generate_return_periods(qout_file, return_period_file, storm_duration_days=7
         num_years = int((datetime.utcfromtimestamp(time_array[-1])-datetime.utcfromtimestamp(time_array[0])).days/365.2425)
         time_steps_per_day = int((24*3600)/(datetime.utcfromtimestamp(time_array[1])-datetime.utcfromtimestamp(time_array[0])).seconds)
         step = time_steps_per_day * storm_duration_days
-        
+
+	daily_time_step_array = qout_nc_file.get_daily_time_index_array()        
         for comid_index, comid in enumerate(river_id_list):
 
-            flow_data = qout_nc_file.get_qout_index(comid_index)
+            daily_flow_data = qout_nc_file.get_daily_qout_index(comid_index, daily_time_step_array)
             filtered_flow_data = []
-            for step_index in range(0,len(flow_data),step):
-                flows_slice = flow_data[step_index:step_index + step]
+            for step_index in range(0,len(daily_flow_data),step):
+                flows_slice = daily_flow_data[step_index:step_index + step]
                 filtered_flow_data.append(max(flows_slice))
             sorted_flow_data = np.sort(filtered_flow_data)[:num_years:-1]
 
