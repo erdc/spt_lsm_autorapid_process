@@ -1,6 +1,8 @@
 # spt_lsm_autorapid_process
 Code to use to prepare input data for RAPID from Land Surface Models (LSM) such as ECMWF ERA Interim Data or NASA GLDAS/NLDAS/LIS data.
 
+#NOTE: THIS REPO HAS BEEN MERGED INTO https://github.com/erdc-cm/RAPIDpy. THERE WILL NO LONGER BE UPDATES HERE.
+
 [![License (3-Clause BSD)](https://img.shields.io/badge/license-BSD%203--Clause-yellow.svg)](https://github.com/erdc-cm/spt_lsm_autorapid_process/blob/master/LICENSE)
 
 [![DOI](https://zenodo.org/badge/19918/erdc-cm/spt_lsm_autorapid_process.svg)](https://zenodo.org/badge/latestdoi/19918/erdc-cm/spt_lsm_autorapid_process)
