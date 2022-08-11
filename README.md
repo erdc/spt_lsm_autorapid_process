@@ -1,17 +1,17 @@
 # spt_lsm_autorapid_process
 Code to use to prepare input data for RAPID from Land Surface Models (LSM) such as ECMWF ERA Interim Data or NASA GLDAS/NLDAS/LIS data.
 
-#NOTE: THIS REPO HAS BEEN MERGED INTO https://github.com/erdc-cm/RAPIDpy. THERE WILL NO LONGER BE UPDATES HERE.
+#NOTE: THIS REPO HAS BEEN MERGED INTO https://github.com/erdc/RAPIDpy. THERE WILL NO LONGER BE UPDATES HERE.
 
-[![License (3-Clause BSD)](https://img.shields.io/badge/license-BSD%203--Clause-yellow.svg)](https://github.com/erdc-cm/spt_lsm_autorapid_process/blob/master/LICENSE)
+[![License (3-Clause BSD)](https://img.shields.io/badge/license-BSD%203--Clause-yellow.svg)](https://github.com/erdc/spt_lsm_autorapid_process/blob/master/LICENSE)
 
-[![DOI](https://zenodo.org/badge/19918/erdc-cm/spt_lsm_autorapid_process.svg)](https://zenodo.org/badge/latestdoi/19918/erdc-cm/spt_lsm_autorapid_process)
+[![DOI](https://zenodo.org/badge/19918/erdc/spt_lsm_autorapid_process.svg)](https://zenodo.org/badge/latestdoi/19918/erdc/spt_lsm_autorapid_process)
 
 ##Step 1: Install RAPID and RAPIDpy
-See: https://github.com/erdc-cm/RAPIDpy
+See: https://github.com/erdc/RAPIDpy
 
 ##Step 2: Install AutoRoute and AutoRoutePy
-See: https://github.com/erdc-cm/AutoRoutePy
+See: https://github.com/erdc/AutoRoutePy
 
 ##Step 3: Install Python Libraries
 ```
@@ -23,7 +23,7 @@ $ exit
 ##Step 4: Download the source code
 ```
 $ cd /path/to/your/scripts/
-$ git clone https://github.com/erdc-cm/spt_lsm_autorapid_process.git
+$ git clone https://github.com/erdc/spt_lsm_autorapid_process.git
 $ cd spt_lsm_autorapid_process
 $ git submodule init
 $ git submodule update
